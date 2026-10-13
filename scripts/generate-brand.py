@@ -22,7 +22,6 @@ OUT = os.path.join(ROOT, "Resources", "Brand")
 FONT = os.environ.get("ESPAZIO_FONT", "/usr/share/fonts/opentype/inter/InterDisplay-SemiBold.otf")
 
 BLACK = "#000000"          # EZColor.notchBackground
-RAISED = "#1C1C1C"         # EZColor.notchRaised (white 0.11)
 SCREEN = "#F2F2F2"         # light screen surface (icon only)
 
 
@@ -101,30 +100,28 @@ def svg(w, h, body, title):
             f"<title>{title}</title>\n{body}</svg>\n")
 
 
+# Nested notch silhouettes, largest to smallest: expanded → peek → collapsed.
+ICON_BANDS = [(760, 560, 40, 170), (560, 390, 36, 130), (340, 230, 30, 90)]
+
+
 def app_icon(dark):
-    """A display seen from the front: black bezel, screen, notch dropping from the bezel.
-    The NotchShape top curves merge into the bezel exactly as the real notch merges into the
-    menu bar. macOS grid: 1024 canvas, 824 body, continuous corner ≈ 185."""
+    """Three nested NotchShape silhouettes hanging from the top edge: the notch opening up
+    (collapsed → peek → expanded). Flat greys only. macOS grid: 1024 canvas, 824 body,
+    continuous corner ≈ 185."""
     bx, by, bs, br = 100, 100, 824, 185.4
-    inset = 40
-    sx, sy, ss, sr = bx + inset, by + inset, bs - 2 * inset, 72
-    nw, nh, nt, nb = 480, 220, 30, 76
-    nx = 512 - nw / 2
     body_path = continuous_rect(bx, by, bs, bs, br)
-    screen_path = continuous_rect(sx, sy, ss, ss, sr)
-    dot, track, fill = peek(nx, sy, nw, nh, nt, 1.0)
-    screen = RAISED if dark else SCREEN
+    if dark:
+        bg, colors, stroke = BLACK, ["#2E2E2E", "#8A8A8A", "#FFFFFF"], "#FFFFFF"
+    else:
+        bg, colors, stroke = SCREEN, ["#D2D2D2", "#8A8A8A", BLACK], BLACK
+    bands = "".join(
+        f'  <path d="{notch_path(512 - w / 2, by, w, h, t, b)}" fill="{c}"/>\n'
+        for (w, h, t, b), c in zip(ICON_BANDS, colors))
     return svg(1024, 1024, (
-        f'<defs><clipPath id="screen"><path d="{screen_path}"/></clipPath></defs>\n'
-        f'<path d="{body_path}" fill="{BLACK}"/>\n'
-        f'<path d="{screen_path}" fill="{screen}"/>\n'
-        f'<g clip-path="url(#screen)">\n'
-        f'  <path d="{notch_path(nx, sy - 0.5, nw, nh, nt, nb)}" fill="{BLACK}"/>\n'
-        f'  <path d="{dot}" fill="#FFFFFF"/>\n'
-        f'  <path d="{track}" fill="#FFFFFF" fill-opacity="0.18"/>\n'
-        f'  <path d="{fill}" fill="#FFFFFF"/>\n'
-        f"</g>\n"
-        f'<path d="{body_path}" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2"/>\n'
+        f'<defs><clipPath id="body"><path d="{body_path}"/></clipPath></defs>\n'
+        f'<path d="{body_path}" fill="{bg}"/>\n'
+        f'<g clip-path="url(#body)">\n{bands}</g>\n'
+        f'<path d="{body_path}" fill="none" stroke="{stroke}" stroke-opacity="0.10" stroke-width="2"/>\n'
     ), "Espazio")
 
 
@@ -196,8 +193,8 @@ def main():
         sys.exit(f"Police introuvable : {FONT} (définir ESPAZIO_FONT)")
     os.makedirs(OUT, exist_ok=True)
     files = {
-        "AppIcon.svg": app_icon(dark=False),
-        "AppIcon-Dark.svg": app_icon(dark=True),
+        "AppIcon.svg": app_icon(dark=True),
+        "AppIcon-Light.svg": app_icon(dark=False),
         "Mark-Black.svg": mark(BLACK),
         "Mark-White.svg": mark("#FFFFFF"),
         "Logo-Black.svg": lockup(BLACK),

@@ -4,7 +4,10 @@ Fichiers : `Resources/Brand/` (SVG vectoriels, texte vectorisé), `Resources/App
 
 ## Concept
 
-Le symbole **est** la notch d’Espazio : la silhouette reprend exactement `NotchShape`
+**Icône d’app** : trois silhouettes `NotchShape` emboîtées qui descendent du bord supérieur — la notch qui
+s’ouvre (repliée → aperçu → déployée). Aplats de gris, lisible dès 16 px.
+
+**Symbole du logo** : il **est** la notch d’Espazio : la silhouette reprend exactement `NotchShape`
 (`Sources/EspazioUI/NotchShape.swift`) — courbes supérieures vers l’extérieur qui se fondent dans le bord de
 l’écran, coins inférieurs arrondis. À l’intérieur, l’état **peek** du design system : une icône à gauche, une
 seule valeur à droite (barre de progression `EZProgressBar` : piste blanc 18 %, remplissage blanc).
@@ -14,8 +17,8 @@ seule valeur à droite (barre de progression `EZProgressBar` : piste blanc 18 %,
 
 | Fichier | Usage |
 |---|---|
-| `AppIcon.svg` | Icône d’app (grille macOS 1024/824, coins continus) : cadre noir, écran clair, notch noire qui descend du cadre. |
-| `AppIcon-Dark.svg` | Variante sombre : écran `notchRaised` (#1C1C1C). |
+| `AppIcon.svg` | Icône d’app (grille macOS 1024/824, coins continus) : fond noir, notches emboîtées gris foncé / gris / blanc. Source de l’iconset. |
+| `AppIcon-Light.svg` | Variante claire (fond #F2F2F2, notches gris clair / gris / noir), pour supports clairs. |
 | `Mark-Black.svg` / `Mark-White.svg` | Symbole seul : bord d’écran + notch, contenu peek en réserve. |
 | `Logo-Black.svg` / `Logo-White.svg` | Symbole + logotype « Espazio ». |
 

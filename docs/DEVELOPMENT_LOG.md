@@ -87,3 +87,5 @@ umask non restauré en cas d’erreur.
 * `build-app.sh` produit `AppIcon.icns` via `iconutil` ; `Info.plist` déclare `CFBundleIconFile`.
 * Vérifié : rendu des SVG et PNG dans Chromium (Linux). Affichage de l’icône dans le Finder et le Dock :
   **non vérifié sur Mac**.
+* Icône d’app revue (retour : peu reconnaissable dans le Dock) : trois notches emboîtées sur fond noir,
+  choisie parmi plusieurs pistes comparées à 16–200 px ; variante claire `AppIcon-Light.svg`.
