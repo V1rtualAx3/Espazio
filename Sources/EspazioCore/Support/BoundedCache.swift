@@ -3,7 +3,7 @@ import Foundation
 /// Small LRU cache bounded by entry count and total cost (e.g. bytes of thumbnails).
 /// Not thread-safe by itself: own it from a single actor.
 public struct BoundedCache<Key: Hashable, Value> {
-    private struct Entry {
+    fileprivate struct Entry {
         var value: Value
         var cost: Int
         var stamp: UInt64
@@ -62,4 +62,5 @@ public struct BoundedCache<Key: Hashable, Value> {
     }
 }
 
+extension BoundedCache.Entry: Sendable where Value: Sendable {}
 extension BoundedCache: Sendable where Key: Sendable, Value: Sendable {}
