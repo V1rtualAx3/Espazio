@@ -9,6 +9,10 @@ configuration `release.config.js`), après le succès des jobs Linux et macOS, s
 | `main` | release stable, tag `vX.Y.Z` | `v1.2.0` |
 | `claude/*`, `feature/*`, `feat/*`, `fix/*` | pré-version bêta (release GitHub marquée *Pre-release*), incrémentée jusqu’à la release suivante | `v1.3.0-beta.1`, `v1.3.0-beta.2` |
 
+Sur `main` uniquement : `CHANGELOG.md` est mis à jour et committé (`chore(release): X.Y.Z [skip ci]`), puis
+les pré-versions bêta (releases et tags) sont supprimées, la version stable les remplaçant. Les branches de
+travail ne committent jamais de changelog : les notes de chaque bêta sont dans sa release GitHub.
+
 Chaque release GitHub contient en pièces jointes le **DMG** et le **PKG** construits pour cette version
 (`scripts/release-build.sh` : version injectée dans `Info.plist` du workspace CI, puis
 `scripts/package.sh` et test de lancement `scripts/smoke-test.sh`). Les notes de version sont générées
@@ -35,6 +39,8 @@ Un push sans commit publiable ne crée pas de version.
 - Réglages › Actions › General › *Workflow permissions* : « Read and write permissions » (ou laisser les
   permissions par job : le job `Release` demande `contents: write`).
 - Les tags `v*` ne doivent pas être protégés contre le `GITHUB_TOKEN`.
+- Si `main` est protégée, autoriser GitHub Actions à y pousser le commit de changelog (ou utiliser un jeton
+  dédié), sinon l’étape `@semantic-release/git` échoue.
 
 ## Builds signés
 

@@ -73,8 +73,9 @@ jobs:
         with:
           node-version: 22
       - name: Install semantic-release
-        run: npm install --no-save --no-package-lock --no-audit --no-fund semantic-release@24 @semantic-release/exec@6 conventional-changelog-conventionalcommits@8
+        run: npm install --no-save --no-package-lock --no-audit --no-fund semantic-release@24 @semantic-release/exec@6 @semantic-release/changelog@6 @semantic-release/git@10 conventional-changelog-conventionalcommits@8
       - name: Publish version (beta on work branches, release on main)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx semantic-release
