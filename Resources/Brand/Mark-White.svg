@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 224" width="512" height="224" role="img" aria-label="Espazio">
+<title>Espazio</title>
+<defs><mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="224"><rect width="512" height="224" fill="#fff"/><path d="M133.16 119.84 A21.32 21.32 0 1 0 175.8 119.84 A21.32 21.32 0 1 0 133.16 119.84 Z" fill="#000"/><path d="M258.3 110.82 H348.5 A9.02 9.02 0 0 1 348.5 128.86 H258.3 A9.02 9.02 0 0 1 258.3 110.82 Z" fill="#000" fill-opacity="0.18"/><path d="M258.3 110.82 H307.37 A9.02 9.02 0 0 1 307.37 128.86 H258.3 A9.02 9.02 0 0 1 258.3 110.82 Z" fill="#000"/></mask></defs>
+<g fill="#FFFFFF" mask="url(#cut)"><path d="M14 0 H498 A14 14 0 0 1 498 28 H14 A14 14 0 0 1 14 0 Z"/><path d="M80 14 Q102 14 102 36 L102 146 Q102 210 166 210 L346 210 Q410 210 410 146 L410 36 Q410 14 432 14 Z"/></g>
+</svg>

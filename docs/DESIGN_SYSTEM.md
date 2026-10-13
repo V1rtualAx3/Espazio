@@ -1,6 +1,7 @@
 # Design system Espazio
 
 Implémentation : `Sources/EspazioUI/DesignSystem.swift`, `NotchShape.swift`.
+Logo et icône d’app : [BRAND.md](BRAND.md).
 
 ## Principes
 

@@ -19,6 +19,9 @@ cp "$BIN/Espazio" "$APP/Contents/MacOS/Espazio"
 cp "$BIN/espazio-hook" "$APP/Contents/MacOS/espazio-hook"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
+if command -v iconutil >/dev/null; then
+    iconutil -c icns Resources/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"
+fi
 
 SIGN_FLAGS=(--force --options runtime --timestamp=none --sign "$IDENTITY")
 codesign "${SIGN_FLAGS[@]}" "$APP/Contents/MacOS/espazio-hook"

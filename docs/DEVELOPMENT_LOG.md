@@ -78,3 +78,12 @@ umask non restauré en cas d’erreur.
 * « Écran actif » = écran sous le pointeur.
 * Google Chat dépend de la configuration Workspace.
 * Mesures de performance non réalisées.
+
+## Identité visuelle : logo et icône d’app
+
+* Symbole dérivé de `NotchShape` (port exact de la géométrie) avec le contenu de l’état peek ; logotype Inter
+  Display SemiBold vectorisé ; icône d’app macOS (variantes claire et sombre). Détails : `docs/BRAND.md`.
+* Générateurs : `scripts/generate-brand.py` (SVG), `scripts/render-iconset.js` (PNG de l’iconset).
+* `build-app.sh` produit `AppIcon.icns` via `iconutil` ; `Info.plist` déclare `CFBundleIconFile`.
+* Vérifié : rendu des SVG et PNG dans Chromium (Linux). Affichage de l’icône dans le Finder et le Dock :
+  **non vérifié sur Mac**.

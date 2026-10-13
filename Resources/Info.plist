@@ -8,6 +8,8 @@
 	<string>Espazio</string>
 	<key>CFBundleExecutable</key>
 	<string>Espazio</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>app.espazio.Espazio</string>
 	<key>CFBundleInfoDictionaryVersion</key>
