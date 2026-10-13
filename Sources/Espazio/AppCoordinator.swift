@@ -11,7 +11,7 @@ import SystemServices
 /// lifecycle and every user action. Lives on the main actor; heavy work happens in actors and
 /// providers.
 @MainActor
-final class AppCoordinator: EspazioActions, SettingsActions {
+final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
     static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
     static let supportDirectory: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -58,6 +58,7 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     private var statusItem: StatusItemController?
     let quickActions = QuickActionsController()
     private(set) var settingsWindow: SettingsWindowController!
+    private var welcomeWindow: WelcomeWindowController?
     private let hotKeys = HotKeyCenter()
     let updates = UpdateController()
     private var workspaceObservers: [NSObjectProtocol] = []
@@ -90,6 +91,9 @@ final class AppCoordinator: EspazioActions, SettingsActions {
         registerHotKeys()
         observeSleep()
         display.start()
+        if !state.settings.hasCompletedOnboarding {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.showWelcome() }
+        }
     }
 
     func shutdown() {
@@ -207,13 +211,8 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     /// Pushes the router state to the UI and schedules the single expiry timer.
     func publish() {
         _ = router.expire(now: Date())
-        var peek = router.peekCandidate
-        if peek == nil, router.pendingDecisionCount > 0, router.policy.mode == .silent {
-            // Silent mode: a discreet, non-animated reminder that decisions are waiting.
-            peek = ActivityItem(
-                source: .agents, priority: .p0, coalescingKey: PeekKeys.silentBadge, title: "\(router.pendingDecisionCount) en attente",
-                symbol: "hand.raised", createdAt: launchDate)
-        }
+        // In silent mode nothing peeks: pending decisions show as a dot under the collapsed notch.
+        let peek = router.peekCandidate
         if state.peek != peek { state.peek = peek }
         state.activityCount = router.items.count
         state.pendingDecisionCount = router.pendingDecisionCount
@@ -629,6 +628,26 @@ final class AppCoordinator: EspazioActions, SettingsActions {
             launchDate: launchDate, notchWindows: display.controllers.count, activityItems: router.items.count,
             artworkCacheItems: media.artworkCacheCount, bridgeRunning: bridge?.isRunning ?? false,
             codexRunning: codexTransport?.isRunning ?? false)
+    }
+
+    // MARK: - Welcome
+
+    func showWelcome() {
+        let controller = welcomeWindow ?? WelcomeWindowController(state: state, actions: self)
+        welcomeWindow = controller
+        controller.show()
+    }
+
+    func finishWelcome() {
+        welcomeWindow?.close()
+        guard !state.settings.hasCompletedOnboarding else { return }
+        var settings = state.settings
+        settings.hasCompletedOnboarding = true
+        updateSettings(settings)
+    }
+
+    func openGoogleSettings() {
+        settingsWindow.show()
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {

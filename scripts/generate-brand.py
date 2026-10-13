@@ -127,6 +127,39 @@ def horizontal_logo(on_dark):
     ), "Espazio")
 
 
+def menu_bar_icon():
+    """Template image for the menu bar (22×16 pt): the two outer notch layers of the app icon,
+    simplified for 16–18 pt. Pure black on transparent; macOS tints it (isTemplate)."""
+    w, h = 22, 16
+    outer = notch_path(1, 0, 20, 15, 2.2, 5.2)
+    inner = notch_path(5.5, 0, 11, 8.2, 1.6, 3.4)
+    body = (f'<path d="{outer}" fill="none" stroke="{BLACK}" stroke-width="1.6" stroke-linejoin="round"/>\n'
+            f'<path d="{inner}" fill="{BLACK}"/>\n'
+            f'<rect x="0" y="0" width="{w}" height="1.4" fill="{BLACK}"/>\n')
+    return svg(w, h, body, "Espazio")
+
+
+def dmg_background():
+    """DMG window background (660×400 pt): horizontal logo, app slot → arrow → Applications.
+    Icon positions must match scripts/dmg-settings.py (app at x=180, Applications at x=480, y=230)."""
+    W, H = 660, 400
+    logo = horizontal_logo(on_dark=False)
+    vb = logo.split('viewBox="0 0 ')[1].split('"')[0].split()
+    lw, lh = float(vb[0]), float(vb[1])
+    scale = 34 / lh
+    inner = logo.split("</title>\n", 1)[1].rsplit("</svg>", 1)[0].replace('id="tile"', 'id="dmgtile"').replace("url(#tile)", "url(#dmgtile)")
+    x0 = (W - lw * scale) / 2
+    arrow_y = 230
+    body = (f'<rect width="{W}" height="{H}" fill="#FFFFFF"/>\n'
+            f'<g transform="translate({f(x0)} 48) scale({scale:.6f})">\n{inner}</g>\n'
+            f'<path d="M262 {arrow_y} L392 {arrow_y}" stroke="#8A8A8A" stroke-width="3" stroke-linecap="round"/>\n'
+            f'<path d="M380 {arrow_y - 11} L396 {arrow_y} L380 {arrow_y + 11}" fill="none" stroke="#8A8A8A" '
+            f'stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>\n'
+            f'<text x="{W / 2}" y="352" text-anchor="middle" font-family="-apple-system, Helvetica, sans-serif" '
+            f'font-size="13" fill="#8A8A8A">Glissez Espazio dans Applications</text>\n')
+    return svg(W, H, body, "Installer Espazio")
+
+
 def wordmark_path(text, x, baseline, size):
     font = TTFont(FONT)
     gs = font.getGlyphSet()
@@ -153,6 +186,8 @@ def main():
         "AppIcon-Light.svg": app_icon(dark=False),
         "Logo-Horizontal.svg": horizontal_logo(on_dark=False),
         "Logo-Horizontal-White.svg": horizontal_logo(on_dark=True),
+        "MenuBarIcon.svg": menu_bar_icon(),
+        "DMGBackground.svg": dmg_background(),
     }
     for name, content in files.items():
         with open(os.path.join(OUT, name), "w", encoding="utf-8") as fh:

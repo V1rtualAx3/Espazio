@@ -101,6 +101,45 @@ final class SettingsWindowController {
     }
 }
 
+/// First-launch welcome window (also reachable from Settings).
+@MainActor
+final class WelcomeWindowController: NSObject, NSWindowDelegate {
+    private var window: NSWindow?
+    private let state: EspazioState
+    private weak var actions: WelcomeActions?
+
+    init(state: EspazioState, actions: WelcomeActions) {
+        self.state = state
+        self.actions = actions
+    }
+
+    func show() {
+        guard let actions else { return }
+        if window == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 460), styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: true)
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.isReleasedWhenClosed = false
+            window.contentViewController = NSHostingController(
+                rootView: WelcomeView(state: state, actions: actions, icon: NSApp.applicationIconImage))
+            window.center()
+            window.delegate = self
+            self.window = window
+        }
+        NSApp.activate()
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    func close() {
+        window?.orderOut(nil)
+    }
+
+    /// Closing with the window button counts as "done": it is shown only once.
+    func windowWillClose(_ notification: Notification) {
+        actions?.finishWelcome()
+    }
+}
+
 /// Menu bar item: entry points that do not depend on the notch.
 @MainActor
 final class StatusItemController: NSObject {
@@ -112,8 +151,15 @@ final class StatusItemController: NSObject {
         self.coordinator = coordinator
         super.init()
         if let button = item.button {
-            button.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "Espazio")
-            button.image?.isTemplate = true
+            // Nested-notch template image from the brand (Resources/MenuBar, embedded by
+            // build-app.sh); SF Symbol fallback when running unbundled (swift run).
+            let image = NSImage(named: "MenuBarIcon")
+                ?? NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: nil)
+            image?.size = NSSize(width: 22, height: 16)
+            image?.isTemplate = true
+            image?.accessibilityDescription = "Espazio"
+            button.image = image
+            button.setAccessibilityLabel("Espazio")
         }
         let menu = NSMenu()
         menu.addItem(withTitle: "Ouvrir la notch", action: #selector(openNotch), keyEquivalent: "").target = self

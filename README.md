@@ -109,6 +109,8 @@ Quittez Espazio (barre des menus › Quitter), retirez les hooks dans Réglages 
 
 ## Premiers pas
 
+Au premier lancement, un écran de bienvenue en 3 étapes vous guide (relançable depuis les Réglages).
+
 1. Barre des menus › icône Espazio › **Réglages…**
 2. **Général** — ouverture à la connexion, écrans, affichage continu, raccourcis, mises à jour.
 3. **Modules** — autorisez Calendrier et Rappels, choisissez vos lecteurs.

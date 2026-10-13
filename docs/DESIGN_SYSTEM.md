@@ -40,11 +40,14 @@ courbes supérieures vers l’extérieur, rayons animables).
 
 | État | Taille | Contenu |
 |---|---|---|
-| `collapsed` | taille exacte de la découpe (ou notch virtuelle 190×menu bar) | rien |
+| `collapsed` | taille exacte de la découpe (ou notch virtuelle 190×menu bar) ; la fenêtre réserve 8 pt dessous | rien — sauf un **point blanc de 5 pt** sous la notch tant qu’une décision IA attend (mode silencieux) : pulsation douce pendant l’attente uniquement, statique avec Réduire les animations, libellé VoiceOver, jamais interactif ni focalisant |
 | `peek` | découpe + 2 ailes de 96 pt | icône à gauche, une valeur à droite (barre de volume, titre court, ondes Spotify) |
 | `expanded` | 600 × (150 + notch) sur l’accueil, 600 × (230 + notch) pour Agents IA / Gmail / Chat ou une décision en attente ; la fenêtre réserve toujours la grande taille | onglets (Accueil, Agents IA, Gmail, Chat), mode concentration, réglages |
 
-Transitions : ressort 0,38 s ; avec **Réduire les animations**, fondu 0,12 s. La fenêtre grandit avant
+Transitions : ressort 0,38 s ; avec **Réduire les animations**, fondu 0,12 s.
+À l’ouverture, le contenu apparaît en **3 paliers** décalés de 40 ms (en-tête, contenu principal, contenu
+secondaire), en écho aux 3 couches de l’icône ; le dernier palier se termine avant la fin du ressort.
+Avec Réduire les animations : simple fondu de 0,12 s, sans décalage ni déplacement. La fenêtre grandit avant
 l’animation et ne rétrécit qu’après (0,40 s), sans animer le cadre de la fenêtre.
 
 ## Accueil (style « Dynamic Island »)

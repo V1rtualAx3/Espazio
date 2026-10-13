@@ -59,6 +59,9 @@ public struct NotchMetrics: Sendable, Equatable {
     /// Compact expanded height (home) and tall height (agents, mail, chat, pending decisions).
     public var expandedSize = CGSize(width: 600, height: 150)
     public var expandedTallHeight: CGFloat = 250
+    /// Strip below the collapsed notch reserved for the pending-decision dot (the area inside a
+    /// physical notch is not visible).
+    public var collapsedIndicatorHeight: CGFloat = 8
     public var cornerRadiusCollapsed: CGFloat = 10
     public var cornerRadiusExpanded: CGFloat = 26
 
@@ -114,10 +117,16 @@ public struct NotchGeometry: Sendable, Equatable {
         }
     }
 
+    /// Collapsed size including the pending-decision indicator strip.
+    public var collapsedIndicatorSize: CGSize {
+        CGSize(width: notchRect.width, height: notchRect.height + metrics.collapsedIndicatorHeight)
+    }
+
     /// Window frame for a state: top-aligned with the screen, horizontally centered on the notch,
-    /// kept inside the screen.
+    /// kept inside the screen. The collapsed window also reserves the indicator strip (its
+    /// transparent pixels let clicks through).
     public func windowFrame(for state: NotchState) -> CGRect {
-        let size = contentSize(for: state)
+        let size = state == .collapsed ? collapsedIndicatorSize : contentSize(for: state)
         var x = notchRect.midX - size.width / 2
         x = min(max(x, screenFrame.minX), screenFrame.maxX - size.width)
         return CGRect(x: x, y: screenFrame.maxY - size.height, width: size.width, height: size.height)

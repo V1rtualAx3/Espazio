@@ -12,13 +12,20 @@ APP="build/Espazio.app"
 DMG="build/Espazio-${VERSION}.dmg"
 PKG="build/Espazio-${VERSION}.pkg"
 
-# --- DMG: app + /Applications shortcut -------------------------------------------------
-STAGING="$(mktemp -d)"
-trap 'rm -rf "$STAGING"' EXIT
-cp -R "$APP" "$STAGING/"
-ln -s /Applications "$STAGING/Applications"
+# --- DMG: background, window size and icon positions (dmgbuild), plain fallback ---------
 rm -f "$DMG"
-hdiutil create -volname "Espazio ${VERSION}" -srcfolder "$STAGING" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
+if python3 -m venv build/.dmgvenv >/dev/null 2>&1 \
+    && build/.dmgvenv/bin/pip install --quiet "dmgbuild>=1.6,<2" >/dev/null 2>&1; then
+    build/.dmgvenv/bin/dmgbuild -s scripts/dmg-settings.py \
+        -D app="$APP" -D background=Resources/DMG/background.png "Espazio ${VERSION}" "$DMG"
+else
+    echo "dmgbuild unavailable: building a plain DMG" >&2
+    STAGING="$(mktemp -d)"
+    trap 'rm -rf "$STAGING"' EXIT
+    cp -R "$APP" "$STAGING/"
+    ln -s /Applications "$STAGING/Applications"
+    hdiutil create -volname "Espazio ${VERSION}" -srcfolder "$STAGING" -fs HFS+ -format UDZO -ov "$DMG" >/dev/null
+fi
 echo "Built $DMG ($(du -h "$DMG" | cut -f1))"
 
 # --- PKG: installs Espazio.app into /Applications --------------------------------------

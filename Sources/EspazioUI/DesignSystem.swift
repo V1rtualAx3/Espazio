@@ -196,3 +196,54 @@ public struct EZPlaceholder: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
+
+/// Opening choreography echoing the 3 layers of the logo: content appears in up to 3 tiers,
+/// 40 ms apart, inside the 0.38 s spring (never lengthening it). Reduce Motion: plain 0.12 s fade.
+struct StaggeredAppear: ViewModifier {
+    let tier: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var visible = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible || reduceMotion ? 0 : -6)
+            .onAppear {
+                let animation: Animation = reduceMotion
+                    ? .easeInOut(duration: 0.12)
+                    : .easeOut(duration: 0.24).delay(0.04 * Double(min(max(tier, 0), 2)))
+                withAnimation(animation) { visible = true }
+            }
+    }
+}
+
+extension View {
+    /// `tier` 0, 1 or 2 (header, primary content, secondary content).
+    func staggeredAppear(_ tier: Int) -> some View {
+        modifier(StaggeredAppear(tier: tier))
+    }
+}
+
+/// Discreet white dot under the collapsed notch while an AI decision is pending. Pulses only
+/// while shown; static with Reduce Motion. Never interactive, never takes focus.
+struct PendingDecisionDot: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Group {
+            if reduceMotion {
+                dot.opacity(0.9)
+            } else {
+                dot.phaseAnimator([0.35, 1.0]) { content, phase in
+                    content.opacity(phase)
+                } animation: { _ in .easeInOut(duration: 0.9) }
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("Décision d’agent en attente")
+    }
+
+    private var dot: some View {
+        Circle().fill(Color.white).frame(width: 5, height: 5)
+    }
+}

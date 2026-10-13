@@ -64,6 +64,7 @@ final class NotchRenderingTests: XCTestCase {
             func setLaunchAtLogin(_ enabled: Bool) {}
             func checkForUpdates() {}
             func setAutomaticUpdateChecks(_ enabled: Bool) {}
+            func showWelcome() {}
         }
         let actions = Noop()
         for scheme in [ColorScheme.light, .dark] {
@@ -83,6 +84,21 @@ final class NotchRenderingTests: XCTestCase {
         XCTAssertFalse(diffRequest.diffs.isEmpty)
         let diffCard = ApprovalCard(request: diffRequest, position: 2, total: 2, session: nil, actions: NoopActions())
         XCTAssertNotNil(render(diffCard.padding(), size: CGSize(width: 600, height: 250)))
+    }
+
+    func testWelcomeAndPendingDot() {
+        for scheme in [ColorScheme.light, .dark] {
+            let welcome = WelcomeView(state: PreviewData.state(), actions: NoopWelcomeActions(), icon: nil)
+            XCTAssertNotNil(render(welcome, size: CGSize(width: 520, height: 460), scheme: scheme))
+        }
+        let state = PreviewData.state()
+        state.peek = nil
+        state.pendingDecisionCount = 1
+        let presentation = PreviewData.presentation(.collapsed)
+        let view = NotchRootView(presentation: presentation, state: state, actions: NoopActions())
+        let size = presentation.geometry.windowFrame(for: .collapsed).size
+        XCTAssertEqual(size.height, presentation.geometry.collapsedIndicatorSize.height)
+        XCTAssertNotNil(render(view, size: size))
     }
 
     func testQuickActionsKeyboardModel() {

@@ -91,3 +91,17 @@ umask non restauré en cas d’erreur.
   choisie parmi plusieurs pistes comparées à 16–200 px ; variante claire `AppIcon-Light.svg`.
 * Logo horizontal (icône + « Espazio ») en versions fond clair et fond sombre ; l’ancien symbole « peek » et
   son logo, devenus incohérents avec l’icône, sont retirés.
+
+## 2026-10-13 — Évolutions de design (validées par l’utilisateur)
+
+* Icône de barre des menus : notches emboîtées (template 2 couches) générée par `generate-brand.py`.
+* Ouverture de la notch en 3 paliers de 40 ms (fondu 0,12 s avec Réduire les animations).
+* DMG avec fond (logo, flèche vers Applications), taille de fenêtre et positions d’icônes via dmgbuild.
+* Écran de bienvenue en 3 étapes (Calendrier/Rappels, Agents IA, Google), affiché une fois, relançable
+  depuis les Réglages, permissions demandées au clic.
+* Point blanc sous la notch repliée quand une décision IA attend en mode silencieux (remplace l’aperçu
+  « N en attente ») ; règle « repliée = rien » assouplie dans le design system.
+* Défaut trouvé : des boucles de test `for … where <variable modifiée après await>` sont mal compilées par
+  Swift 6.1 sous Linux (plantage, signal 11) ; remplacées par des boucles `while`.
+* Tests Linux : 118 tests, 0 échec. Rendu SwiftUI de l’écran de bienvenue et du point : tests de rendu
+  ajoutés (CI macOS). Comportement visuel réel : **non vérifié sur Mac**.

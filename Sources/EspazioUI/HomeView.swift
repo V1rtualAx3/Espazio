@@ -17,11 +17,13 @@ struct HomeTab: View {
         VStack(spacing: 10) {
             if !state.pendingRequests.isEmpty {
                 PendingBanner(count: state.pendingRequests.count) { presentation.tab = .agents }
+                    .staggeredAppear(1)
             }
             HStack(alignment: .top, spacing: 0) {
                 if showsMedia {
                     NowPlayingSection(state: state, actions: actions)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .staggeredAppear(1)
                 }
                 if showsMedia && showsAgenda {
                     Rectangle()
@@ -33,6 +35,7 @@ struct HomeTab: View {
                     AgendaSection(state: state, actions: actions)
                         .frame(width: showsMedia ? 190 : nil, alignment: .leading)
                         .frame(maxWidth: showsMedia ? nil : .infinity, alignment: .leading)
+                        .staggeredAppear(showsMedia ? 2 : 1)
                 }
             }
             .frame(maxHeight: .infinity, alignment: .top)

@@ -48,6 +48,7 @@ final class DisplayTests: XCTestCase {
         XCTAssertGreaterThan(geometry.contentSize(for: .peek).width, geometry.contentSize(for: .collapsed).width)
         XCTAssertLessThan(geometry.contentSize(for: .expanded, tall: false).height, geometry.contentSize(for: .expanded).height)
         XCTAssertEqual(geometry.windowFrame(for: .expanded).size, geometry.contentSize(for: .expanded))
+        XCTAssertEqual(geometry.windowFrame(for: .collapsed).height, geometry.notchRect.height + NotchMetrics.standard.collapsedIndicatorHeight)
     }
 
     func testExpandedFitsSmallScreens() {

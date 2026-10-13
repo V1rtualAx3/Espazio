@@ -92,6 +92,7 @@ final class SupportTests: XCTestCase {
         XCTAssertEqual(settings.focusMode, .normal)
         XCTAssertEqual(EspazioSettings.decode(Data("garbage".utf8)), EspazioSettings())
         XCTAssertEqual(EspazioSettings.decode(settings.encoded()), settings)
+        XCTAssertFalse(settings.hasCompletedOnboarding, "welcome shown once for existing settings files")
     }
 
     func testMutedSources() {

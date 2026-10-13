@@ -39,3 +39,27 @@ node scripts/render-iconset.js Resources/Brand/AppIcon.svg Resources/AppIcon.ico
 
 `scripts/build-app.sh` compile l’iconset en `AppIcon.icns` avec `iconutil` (macOS) ; `Info.plist` le référence
 via `CFBundleIconFile`.
+
+## Icône de barre des menus
+
+`MenuBarIcon.svg` (22 × 16 pt) : version simplifiée à 2 couches des notches emboîtées (contour de la grande
+notch + petite notch pleine, accrochées au bord supérieur). Noir pur sur transparent, utilisée en
+`isTemplate` (macOS la teinte selon la barre des menus) avec le libellé d’accessibilité « Espazio ».
+PNG 1x/2x dans `Resources/MenuBar/`, copiés dans le bundle par `scripts/build-app.sh`.
+
+## Fond du DMG
+
+`DMGBackground.svg` (660 × 400 pt) : logo horizontal, flèche grise de l’emplacement de l’app vers
+Applications, consigne en gris. PNG 1x/2x dans `Resources/DMG/`. Positions des icônes (app x = 180,
+Applications x = 480, y = 230) définies dans `scripts/dmg-settings.py` (dmgbuild, utilisé par
+`scripts/package.sh`, repli sur un DMG simple si dmgbuild est indisponible).
+
+## Régénérer les rendus PNG
+
+```sh
+python3 scripts/generate-brand.py
+node scripts/render-png.js Resources/Brand/MenuBarIcon.svg Resources/MenuBar/MenuBarIcon.png 22 16 1
+node scripts/render-png.js Resources/Brand/MenuBarIcon.svg Resources/MenuBar/MenuBarIcon@2x.png 22 16 2
+node scripts/render-png.js Resources/Brand/DMGBackground.svg Resources/DMG/background.png 660 400 1
+node scripts/render-png.js Resources/Brand/DMGBackground.svg Resources/DMG/background@2x.png 660 400 2
+```

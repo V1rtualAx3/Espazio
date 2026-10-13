@@ -11,12 +11,13 @@ struct ExpandedView: View {
         let geometry = presentation.geometry
         VStack(spacing: 10) {
             header(notchWidth: geometry.notchRect.width, height: geometry.notchRect.height)
+                .staggeredAppear(0)
             Group {
                 switch presentation.tab {
                 case .home: HomeTab(state: state, actions: actions, presentation: presentation)
-                case .agents: AgentsTab(state: state, actions: actions)
-                case .mail: MailTab(state: state, actions: actions)
-                case .chat: ChatTab(state: state, actions: actions)
+                case .agents: AgentsTab(state: state, actions: actions).staggeredAppear(1)
+                case .mail: MailTab(state: state, actions: actions).staggeredAppear(1)
+                case .chat: ChatTab(state: state, actions: actions).staggeredAppear(1)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

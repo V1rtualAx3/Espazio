@@ -70,7 +70,8 @@ final class ApprovalCenterTests: XCTestCase {
         async let first = center.submit(Self.request())
         async let second = center.submit(Self.request())
         // Both submissions must be waiting before the decision (no race with the resolution).
-        for _ in 0..<400 where await center.waiterCount(requestID: "r1") < 2 {
+        let deadline = Date().addingTimeInterval(2)
+        while await center.waiterCount(requestID: "r1") < 2, Date() < deadline {
             try? await Task.sleep(nanoseconds: 5_000_000)
         }
         let waiters = await center.waiterCount(requestID: "r1")

@@ -19,8 +19,9 @@ public struct NotchRootView: View {
         let geometry = presentation.geometry
         let notchState = presentation.state
         let tall = presentation.tab != .home || !state.pendingRequests.isEmpty
+        let showsPendingDot = notchState == .collapsed && state.pendingDecisionCount > 0
         // The window always reserves the tall size; the shape adapts to the content.
-        let size = geometry.contentSize(for: notchState, tall: tall)
+        let size = showsPendingDot ? geometry.collapsedIndicatorSize : geometry.contentSize(for: notchState, tall: tall)
         let topRadius: CGFloat = notchState == .expanded ? 10 : 6
         let bottomRadius = notchState == .expanded ? geometry.metrics.cornerRadiusExpanded : geometry.metrics.cornerRadiusCollapsed
 
@@ -49,7 +50,14 @@ public struct NotchRootView: View {
     private func content(state notchState: NotchState, geometry: NotchGeometry) -> some View {
         switch notchState {
         case .collapsed:
-            Color.clear
+            if state.pendingDecisionCount > 0 {
+                VStack {
+                    Spacer(minLength: 0)
+                    PendingDecisionDot().padding(.bottom, 2)
+                }
+            } else {
+                Color.clear
+            }
         case .peek:
             if let item = state.peek {
                 PeekView(item: item, state: state, geometry: geometry)
@@ -67,7 +75,6 @@ public struct NotchRootView: View {
 public enum PeekKeys {
     public static let nowPlaying = "media"
     public static let trackChange = "media-track"
-    public static let silentBadge = "silent-badge"
 }
 
 /// Compact view on both sides of the notch: one prioritized piece of information only.

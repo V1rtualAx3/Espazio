@@ -18,6 +18,7 @@ public protocol SettingsActions: AnyObject {
     func setLaunchAtLogin(_ enabled: Bool)
     func checkForUpdates()
     func setAutomaticUpdateChecks(_ enabled: Bool)
+    func showWelcome()
 }
 
 public struct SettingsView: View {
@@ -59,6 +60,7 @@ public struct SettingsView: View {
             Section("Démarrage") {
                 Toggle("Ouvrir Espazio à l’ouverture de session", isOn: Binding(
                     get: { state.launchAtLogin }, set: { actions.setLaunchAtLogin($0) }))
+                Button("Revoir l’écran de bienvenue") { actions.showWelcome() }
             }
             Section("Affichage") {
                 Picker("Écrans", selection: binding(\.displayMode)) {

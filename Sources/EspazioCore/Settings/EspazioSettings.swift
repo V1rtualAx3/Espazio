@@ -140,6 +140,8 @@ public struct EspazioSettings: Sendable, Codable, Equatable {
     public var diagnosticsEnabled = false
     /// Google OAuth client identifier supplied by the user (not a secret).
     public var googleClientID: String = ""
+    /// The welcome window has been shown (or skipped) once.
+    public var hasCompletedOnboarding = false
 
     public init() {}
 
@@ -161,6 +163,7 @@ public struct EspazioSettings: Sendable, Codable, Equatable {
         toggleNotchShortcut = (try? c.decodeIfPresent(KeyShortcut.self, forKey: .toggleNotchShortcut)) ?? d.toggleNotchShortcut
         diagnosticsEnabled = try c.decodeIfPresent(Bool.self, forKey: .diagnosticsEnabled) ?? d.diagnosticsEnabled
         googleClientID = try c.decodeIfPresent(String.self, forKey: .googleClientID) ?? d.googleClientID
+        hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? d.hasCompletedOnboarding
         normalize()
     }
 

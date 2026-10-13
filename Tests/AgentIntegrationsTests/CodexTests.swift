@@ -66,6 +66,18 @@ final class EventRecorder: @unchecked Sendable {
     }
 }
 
+/// Polls the center until `count` requests are pending (plain `while` loop: a `for … where`
+/// over a variable mutated across `await` is miscompiled by Swift 6.1 on Linux).
+func pendingRequests(_ center: ApprovalCenter, atLeast count: Int, timeout: TimeInterval = 2) async -> [AgentRequest] {
+    let deadline = Date().addingTimeInterval(timeout)
+    var current = await center.pendingRequests
+    while current.count < count, Date() < deadline {
+        try? await Task.sleep(nanoseconds: 5_000_000)
+        current = await center.pendingRequests
+    }
+    return current
+}
+
 final class CodexTests: XCTestCase {
     func makeClient(timeout: TimeInterval = 60) -> (CodexAppServerClient, FakeTransport, ApprovalCenter, EventRecorder) {
         let transport = FakeTransport()
@@ -117,11 +129,7 @@ final class CodexTests: XCTestCase {
         let (client, transport, center, _) = makeClient()
         try await handshake(client, transport)
         transport.emit(#"{"id":"srv-1","method":"item/commandExecution/requestApproval","params":{"threadId":"th_9","turnId":"t","itemId":"i","startedAtMs":0,"command":"rm -rf dist","cwd":"/p","reason":"cleanup"}}"#)
-        var pending: [AgentRequest] = []
-        for _ in 0..<100 where pending.isEmpty {
-            pending = await center.pendingRequests
-            try await Task.sleep(nanoseconds: 5_000_000)
-        }
+        let pending = await pendingRequests(center, atLeast: 1)
         let request = try XCTUnwrap(pending.first)
         XCTAssertEqual(request.summary, "rm -rf dist")
         XCTAssertEqual(request.workingDirectory, "/p")
@@ -138,11 +146,7 @@ final class CodexTests: XCTestCase {
         try await handshake(client, transport)
         transport.emit(#"{"id":7,"method":"item/fileChange/requestApproval","params":{"threadId":"th","turnId":"t","itemId":"i","startedAtMs":0}}"#)
         transport.emit(#"{"id":8,"method":"item/commandExecution/requestApproval","params":{"threadId":"th","turnId":"t","itemId":"j","startedAtMs":0,"command":"ls"}}"#)
-        var pending: [AgentRequest] = []
-        for _ in 0..<100 where pending.count < 2 {
-            pending = await center.pendingRequests
-            try await Task.sleep(nanoseconds: 5_000_000)
-        }
+        let pending = await pendingRequests(center, atLeast: 2)
         let fileRequest = try XCTUnwrap(pending.first { $0.kind == .fileChange })
         await center.resolve(requestID: fileRequest.id, sessionID: "th", response: .deny(.user))
         let reply = await transport.waitFor { $0["id"]?.doubleValue == 7 }
@@ -173,11 +177,7 @@ final class CodexTests: XCTestCase {
         let (client, transport, center, _) = makeClient()
         try await handshake(client, transport)
         transport.emit(#"{"id":11,"method":"item/tool/requestUserInput","params":{"threadId":"th","turnId":"t","itemId":"i","isBlocking":true,"questions":[{"id":"q1","header":"Base","question":"Quelle branche ?","options":[{"label":"main","description":""},{"label":"dev","description":""}]}]}}"#)
-        var pending: [AgentRequest] = []
-        for _ in 0..<100 where pending.isEmpty {
-            pending = await center.pendingRequests
-            try await Task.sleep(nanoseconds: 5_000_000)
-        }
+        let pending = await pendingRequests(center, atLeast: 1)
         let request = try XCTUnwrap(pending.first)
         XCTAssertEqual(request.kind, .question(options: ["main", "dev"]))
         await center.resolve(requestID: request.id, sessionID: "th", response: .answer("dev"))
@@ -215,11 +215,7 @@ final class CodexTests: XCTestCase {
         try await handshake(client, transport)
         transport.emit(#"{"method":"item/started","params":{"threadId":"th","turnId":"t","item":{"type":"fileChange","id":"fc1","changes":[{"path":"src/a.swift","kind":"update","diff":"@@ -1 +1 @@\n-old\n+new"}]}}}"#)
         transport.emit(#"{"id":5,"method":"item/fileChange/requestApproval","params":{"threadId":"th","turnId":"t","itemId":"fc1","startedAtMs":0}}"#)
-        var pending: [AgentRequest] = []
-        for _ in 0..<100 where pending.isEmpty {
-            pending = await center.pendingRequests
-            try await Task.sleep(nanoseconds: 5_000_000)
-        }
+        let pending = await pendingRequests(center, atLeast: 1)
         let request = try XCTUnwrap(pending.first)
         XCTAssertEqual(request.summary, "src/a.swift")
         XCTAssertEqual(request.diffs.first?.lines, [.init(.hunk, "@@ -1 +1 @@"), .init(.removed, "old"), .init(.added, "new")])
