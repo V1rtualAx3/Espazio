@@ -2,17 +2,20 @@
 
 Les versions sont calculées et publiées automatiquement par
 [semantic-release](https://semantic-release.gitbook.io) (job `Release` de `.github/workflows/ci.yml`,
-configuration `.releaserc.json`), après le succès des jobs Linux et macOS, sur chaque **push**.
+configuration `release.config.js`), après le succès des jobs Linux et macOS, sur chaque **push**.
 
 | Branche | Version publiée | Exemple |
 |---|---|---|
 | `main` | release stable, tag `vX.Y.Z` | `v1.2.0` |
-| `claude/*`, `feature/*`, `feat/*`, `fix/*` | pré-version bêta (release GitHub marquée *Pre-release*) | `v1.3.0-beta-feature-notch.1` |
+| `claude/*`, `feature/*`, `feat/*`, `fix/*` | pré-version bêta (release GitHub marquée *Pre-release*), incrémentée jusqu’à la release suivante | `v1.3.0-beta.1`, `v1.3.0-beta.2` |
 
 Chaque release GitHub contient en pièces jointes le **DMG** et le **PKG** construits pour cette version
 (`scripts/release-build.sh` : version injectée dans `Info.plist` du workspace CI, puis
 `scripts/package.sh` et test de lancement `scripts/smoke-test.sh`). Les notes de version sont générées
 depuis les commits.
+
+> Une seule branche de travail à la fois devrait publier des bêtas : deux branches parallèles partagent la
+> même série `beta` et pourraient viser le même numéro.
 
 ## Convention de commits (obligatoire)
 
