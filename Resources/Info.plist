@@ -41,7 +41,13 @@
 	<key>NSRemindersUsageDescription</key>
 	<string>Espazio affiche vos rappels du jour et en retard, et permet d’en créer ou d’en terminer.</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Espazio pilote la lecture de Spotify (lecture, pause, piste suivante) à votre demande.</string>
+	<string>Espazio affiche et pilote la lecture de Spotify et de Musique (lecture, pause, piste suivante) à votre demande.</string>
+	<key>SUFeedURL</key>
+	<string>https://github.com/V1rtualAx3/Espazio/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string></string>
+	<key>SUEnableSystemProfiling</key>
+	<false/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Espazio signale la connexion et la déconnexion de vos périphériques Bluetooth (option désactivée par défaut).</string>
 </dict>

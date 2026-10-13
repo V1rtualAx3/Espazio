@@ -23,7 +23,12 @@ var targets: [Target] = [
     .testTarget(name: "GoogleProviderTests", dependencies: ["GoogleProvider"]),
 ]
 
+var dependencies: [Package.Dependency] = []
+
 #if os(macOS)
+// Sparkle (auto-update) is the only third-party dependency: macOS-only, requested feature,
+// standard for apps distributed outside the Mac App Store.
+dependencies.append(.package(url: "https://github.com/sparkle-project/Sparkle", .upToNextMinor(from: "2.6.4")))
 products.append(.executable(name: "Espazio", targets: ["Espazio"]))
 targets += [
     .target(name: "SystemServices", dependencies: ["EspazioCore"]),
@@ -34,7 +39,10 @@ targets += [
         dependencies: [
             "EspazioCore", "EspazioBridge", "AgentIntegrations", "GoogleProvider",
             "SystemServices", "ProductivityProviders", "EspazioUI",
-        ]
+            .product(name: "Sparkle", package: "Sparkle"),
+        ],
+        // Sparkle.framework is embedded in Contents/Frameworks by scripts/build-app.sh.
+        linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
     ),
     .testTarget(name: "EspazioUITests", dependencies: ["EspazioUI", "EspazioCore"]),
 ]
@@ -44,6 +52,7 @@ let package = Package(
     name: "Espazio",
     platforms: [.macOS(.v14)],
     products: products,
+    dependencies: dependencies,
     targets: targets,
     swiftLanguageModes: [.v6]
 )

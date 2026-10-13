@@ -45,6 +45,10 @@ public enum PreviewData {
                 AgentRequest(id: "claude:s1:t1", sessionID: "s1", provider: .claudeCode, kind: .command, toolName: "Bash",
                              summary: "swift test --parallel && git push origin feature/notch" + long, workingDirectory: "/Users/me/Espazio",
                              detail: "Lancer les tests puis pousser la branche", createdAt: now, deadline: now.addingTimeInterval(300)),
+                AgentRequest(id: "claude:s1:t2", sessionID: "s1", provider: .claudeCode, kind: .fileChange, toolName: "Edit",
+                             summary: "Sources/App.swift", workingDirectory: "/Users/me/Espazio", detail: nil, createdAt: now,
+                             deadline: now.addingTimeInterval(300),
+                             diffs: [DiffEngine.diff(path: "Sources/App.swift", old: "let a = 1\nlet b = 2", new: "let a = 1\nlet b = 3" + long)]),
             ]
         }
         state.pendingDecisionCount = state.pendingRequests.count

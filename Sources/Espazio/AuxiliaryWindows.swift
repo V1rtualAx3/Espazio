@@ -122,6 +122,9 @@ final class StatusItemController: NSObject {
         menu.addItem(silentItem)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Réglages…", action: #selector(openSettings), keyEquivalent: ",").target = self
+        if coordinator.updates.isConfigured {
+            menu.addItem(withTitle: "Rechercher des mises à jour…", action: #selector(checkUpdates), keyEquivalent: "").target = self
+        }
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quitter Espazio", action: #selector(quit), keyEquivalent: "q").target = self
         menu.delegate = self
@@ -132,6 +135,7 @@ final class StatusItemController: NSObject {
     @objc private func openQuickActions() { coordinator?.toggleQuickActions() }
     @objc private func openSettings() { coordinator?.openSettings() }
     @objc private func quit() { NSApp.terminate(nil) }
+    @objc private func checkUpdates() { coordinator?.checkForUpdates() }
 
     @objc private func toggleSilent() {
         guard let coordinator else { return }

@@ -99,8 +99,8 @@ struct NowPlayingSection: View {
                 .frame(height: 64 + 36, alignment: .top)
             }
         } else {
-            QuietLine(symbol: "music.note", text: state.mediaAvailable ? "Spotify en pause" : "Aucune lecture",
-                      actionTitle: "Ouvrir Spotify") { actions.openMediaApp() }
+            QuietLine(symbol: "music.note", text: state.mediaAvailable ? "\(state.mediaPlayerName) en pause" : "Aucune lecture",
+                      actionTitle: "Ouvrir \(state.mediaPlayerName)") { actions.openMediaApp() }
         }
     }
 

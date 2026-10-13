@@ -15,6 +15,9 @@ public protocol SettingsActions: AnyObject {
     func openPrivacySettings(_ pane: String)
     func refreshDiagnostics()
     func revealAuditLog()
+    func setLaunchAtLogin(_ enabled: Bool)
+    func checkForUpdates()
+    func setAutomaticUpdateChecks(_ enabled: Bool)
 }
 
 public struct SettingsView: View {
@@ -53,6 +56,10 @@ public struct SettingsView: View {
 
     private var general: some View {
         Form {
+            Section("Démarrage") {
+                Toggle("Ouvrir Espazio à l’ouverture de session", isOn: Binding(
+                    get: { state.launchAtLogin }, set: { actions.setLaunchAtLogin($0) }))
+            }
             Section("Affichage") {
                 Picker("Écrans", selection: binding(\.displayMode)) {
                     Text("Écran principal").tag(DisplayMode.mainOnly)
@@ -97,8 +104,30 @@ public struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Raccourcis") {
-                LabeledContent("Actions rapides", value: state.settings.quickActionsShortcut.displayString)
-                LabeledContent("Ouvrir / fermer la notch", value: state.settings.toggleNotchShortcut.displayString)
+                LabeledContent("Actions rapides") {
+                    ShortcutRecorder(shortcut: state.settings.quickActionsShortcut, defaultShortcut: .defaultQuickActions) { new in
+                        var copy = state.settings
+                        copy.quickActionsShortcut = new
+                        actions.updateSettings(copy)
+                    }
+                }
+                LabeledContent("Ouvrir / fermer la notch") {
+                    ShortcutRecorder(shortcut: state.settings.toggleNotchShortcut, defaultShortcut: .defaultToggleNotch) { new in
+                        var copy = state.settings
+                        copy.toggleNotchShortcut = new
+                        actions.updateSettings(copy)
+                    }
+                }
+            }
+            Section("Mises à jour") {
+                if state.updatesConfigured {
+                    Toggle("Rechercher automatiquement les mises à jour", isOn: Binding(
+                        get: { state.automaticUpdateChecks }, set: { actions.setAutomaticUpdateChecks($0) }))
+                    Button("Rechercher maintenant") { actions.checkForUpdates() }
+                } else {
+                    Text("Mises à jour automatiques non configurées pour ce build (voir docs/UPDATES.md).")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
@@ -107,7 +136,9 @@ public struct SettingsView: View {
     private var modules: some View {
         Form {
             Section("Médias et système") {
-                Toggle("Spotify", isOn: binding(\.modules.media))
+                Toggle("Lecture en cours", isOn: binding(\.modules.media))
+                Toggle("Spotify", isOn: binding(\.modules.spotify)).disabled(!state.settings.modules.media)
+                Toggle("Musique (Apple Music)", isOn: binding(\.modules.appleMusic)).disabled(!state.settings.modules.media)
                 Toggle("Volume", isOn: binding(\.modules.volume))
                 Toggle("Changement de sortie audio", isOn: binding(\.modules.audioDevice))
                 Toggle("Batterie et alimentation", isOn: binding(\.modules.battery))

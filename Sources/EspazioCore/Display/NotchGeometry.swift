@@ -58,7 +58,7 @@ public struct NotchMetrics: Sendable, Equatable {
     public var peekExtraHeight: CGFloat = 0
     /// Compact expanded height (home) and tall height (agents, mail, chat, pending decisions).
     public var expandedSize = CGSize(width: 600, height: 150)
-    public var expandedTallHeight: CGFloat = 230
+    public var expandedTallHeight: CGFloat = 250
     public var cornerRadiusCollapsed: CGFloat = 10
     public var cornerRadiusExpanded: CGFloat = 26
 

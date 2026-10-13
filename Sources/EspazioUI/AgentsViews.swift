@@ -55,16 +55,23 @@ public struct ApprovalCard: View {
                 DeadlineLabel(deadline: request.deadline)
             }
 
-            ScrollView(.vertical) {
-                Text(request.summary)
-                    .font(EZFont.mono)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
+            Group {
+                if request.diffs.isEmpty {
+                    ScrollView(.vertical) {
+                        Text(request.summary)
+                            .font(EZFont.mono)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                    }
+                    .frame(maxHeight: 64)
+                    .accessibilityLabel("Commande : \(request.summary)")
+                } else {
+                    DiffView(diffs: request.diffs).frame(maxHeight: 96)
+                }
             }
-            .frame(maxHeight: 64)
             .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(EZColor.notchRaised))
-            .accessibilityLabel("Commande : \(request.summary)")
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 if let cwd = request.workingDirectory {

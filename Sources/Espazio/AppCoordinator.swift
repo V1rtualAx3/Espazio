@@ -27,7 +27,7 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     private var liveTimer: Timer?
 
     // Modules
-    let spotify = SpotifyProvider()
+    let media = MediaHub()
     let audio = AudioMonitor()
     let power = PowerMonitor()
     let keyboard = KeyboardMonitor()
@@ -59,6 +59,7 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     let quickActions = QuickActionsController()
     private(set) var settingsWindow: SettingsWindowController!
     private let hotKeys = HotKeyCenter()
+    let updates = UpdateController()
     private var workspaceObservers: [NSObjectProtocol] = []
 
     private static let settingsKey = "settings.v1"
@@ -75,6 +76,9 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     // MARK: - Lifecycle
 
     func start() {
+        state.launchAtLogin = LaunchAtLogin.isEnabled
+        state.updatesConfigured = updates.isConfigured
+        state.automaticUpdateChecks = updates.automaticallyChecks
         statusItem = StatusItemController(coordinator: self)
         quickActions.onExecute = { [weak self] item in self?.perform(item) }
         applyPolicy()
@@ -96,7 +100,7 @@ final class AppCoordinator: EspazioActions, SettingsActions {
         power.stop()
         keyboard.stop()
         bluetooth?.stop()
-        spotify.stop()
+        media.stopAll()
         eventKit.stop()
         display.stop()
         audit.flush()
@@ -143,7 +147,9 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     }
 
     private func restartModules(old: ModuleSettings, new: ModuleSettings) {
-        if old.media != new.media { new.media ? spotify.start() : stopMedia() }
+        if old.media != new.media || old.spotify != new.spotify || old.appleMusic != new.appleMusic {
+            new.media ? media.configure(spotify: new.spotify, appleMusic: new.appleMusic) : stopMedia()
+        }
         if old.volume != new.volume || old.audioDevice != new.audioDevice {
             (new.volume || new.audioDevice) ? audio.start() : audio.stop()
         }
@@ -252,10 +258,13 @@ final class AppCoordinator: EspazioActions, SettingsActions {
         state.capsLock = modules.keyboard ? .value(keyboard.capsLockOn) : .unavailable(reason: "Module désactivé")
         configureBluetooth(modules.bluetooth)
 
-        spotify.onChange = { [weak self] playing in self?.handleNowPlaying(playing) }
-        spotify.onArtwork = { [weak self] image in self?.state.artwork = image }
-        if modules.media { spotify.start() }
-        state.mediaAvailable = spotify.isRunning
+        media.onChange = { [weak self] playing, name in
+            self?.state.mediaPlayerName = name
+            self?.handleNowPlaying(playing)
+        }
+        media.onArtwork = { [weak self] image in self?.state.artwork = image }
+        if modules.media { media.configure(spotify: modules.spotify, appleMusic: modules.appleMusic) }
+        state.mediaAvailable = media.isAnyRunning
     }
 
     private func configureBluetooth(_ enabled: Bool) {
@@ -291,7 +300,7 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     private func handleNowPlaying(_ playing: NowPlaying?) {
         let previous = state.nowPlaying
         state.nowPlaying = playing
-        state.mediaAvailable = spotify.isRunning
+        state.mediaAvailable = media.isAnyRunning
         let now = Date()
         guard let playing else {
             refreshLiveActivity()
@@ -352,7 +361,7 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     }
 
     private func stopMedia() {
-        spotify.stop()
+        media.stopAll()
         state.nowPlaying = nil
         state.artwork = nil
         dismissActivity(key: PeekKeys.nowPlaying)
@@ -457,8 +466,16 @@ final class AppCoordinator: EspazioActions, SettingsActions {
 
     private func registerHotKeys() {
         let settings = state.settings
-        hotKeys.register(id: 1, shortcut: settings.quickActionsShortcut) { [weak self] in self?.toggleQuickActions() }
-        hotKeys.register(id: 2, shortcut: settings.toggleNotchShortcut) { [weak self] in self?.toggleNotch() }
+        var refused: [String] = []
+        if !hotKeys.register(id: 1, shortcut: settings.quickActionsShortcut, handler: { [weak self] in self?.toggleQuickActions() }) {
+            refused.append(settings.quickActionsShortcut.displayString)
+        }
+        if !hotKeys.register(id: 2, shortcut: settings.toggleNotchShortcut, handler: { [weak self] in self?.toggleNotch() }) {
+            refused.append(settings.toggleNotchShortcut.displayString)
+        }
+        if !refused.isEmpty {
+            settingsWindow.lastError = "Raccourci déjà utilisé par une autre application : \(refused.joined(separator: ", "))."
+        }
     }
 
     func toggleNotch() {
@@ -523,10 +540,10 @@ final class AppCoordinator: EspazioActions, SettingsActions {
 
     // MARK: - EspazioActions (media, productivity, app)
 
-    func togglePlayPause() { spotify.playPause() }
-    func nextTrack() { spotify.next() }
-    func previousTrack() { spotify.previous() }
-    func openMediaApp() { spotify.openApp() }
+    func togglePlayPause() { media.playPause() }
+    func nextTrack() { media.next() }
+    func previousTrack() { media.previous() }
+    func openMediaApp() { media.openApp() }
 
     func requestCalendarAccess() {
         Task { _ = await eventKit.requestEventsAccess() }
@@ -610,8 +627,20 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     func refreshDiagnostics() {
         state.diagnostics = Diagnostics.snapshot(
             launchDate: launchDate, notchWindows: display.controllers.count, activityItems: router.items.count,
-            artworkCacheItems: spotify.artworkCacheCount, bridgeRunning: bridge?.isRunning ?? false,
+            artworkCacheItems: media.artworkCacheCount, bridgeRunning: bridge?.isRunning ?? false,
             codexRunning: codexTransport?.isRunning ?? false)
+    }
+
+    func setLaunchAtLogin(_ enabled: Bool) {
+        settingsWindow.lastError = LaunchAtLogin.set(enabled)
+        state.launchAtLogin = LaunchAtLogin.isEnabled
+    }
+
+    func checkForUpdates() { updates.checkForUpdates() }
+
+    func setAutomaticUpdateChecks(_ enabled: Bool) {
+        updates.automaticallyChecks = enabled
+        state.automaticUpdateChecks = updates.automaticallyChecks
     }
 
     func revealAuditLog() {

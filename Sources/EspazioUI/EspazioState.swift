@@ -82,6 +82,13 @@ public final class EspazioState {
     public var nowPlaying: NowPlaying?
     public var artwork: NSImage?
     public var mediaAvailable = false
+    /// Name of the player shown ("Spotify", "Musique").
+    public var mediaPlayerName = "Spotify"
+
+    // App
+    public var launchAtLogin = false
+    public var updatesConfigured = false
+    public var automaticUpdateChecks = false
 
     // System
     public var capsLock: Observed<Bool> = .unavailable(reason: "Non observé")

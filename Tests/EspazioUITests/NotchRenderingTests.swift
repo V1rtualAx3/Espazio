@@ -61,6 +61,9 @@ final class NotchRenderingTests: XCTestCase {
             func openPrivacySettings(_ pane: String) {}
             func refreshDiagnostics() {}
             func revealAuditLog() {}
+            func setLaunchAtLogin(_ enabled: Bool) {}
+            func checkForUpdates() {}
+            func setAutomaticUpdateChecks(_ enabled: Bool) {}
         }
         let actions = Noop()
         for scheme in [ColorScheme.light, .dark] {
@@ -76,6 +79,10 @@ final class NotchRenderingTests: XCTestCase {
         let request = try! XCTUnwrap(state.pendingRequests.first)
         let card = ApprovalCard(request: request, position: 1, total: 1, session: state.sessions.first, actions: NoopActions())
         XCTAssertNotNil(render(card.padding(), size: CGSize(width: 600, height: 220)))
+        let diffRequest = state.pendingRequests[1]
+        XCTAssertFalse(diffRequest.diffs.isEmpty)
+        let diffCard = ApprovalCard(request: diffRequest, position: 2, total: 2, session: nil, actions: NoopActions())
+        XCTAssertNotNil(render(diffCard.padding(), size: CGSize(width: 600, height: 250)))
     }
 
     func testQuickActionsKeyboardModel() {
