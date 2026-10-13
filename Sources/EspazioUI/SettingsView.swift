@@ -67,6 +67,25 @@ public struct SettingsView: View {
                     }
                 }
             }
+            Section {
+                Toggle("Média en cours de lecture", isOn: binding(\.live.media))
+                Toggle("Garder le média affiché en pause", isOn: binding(\.live.mediaWhenPaused))
+                    .disabled(!state.settings.live.media)
+                Toggle("Compte à rebours de la prochaine réunion", isOn: binding(\.live.nextEvent))
+                if state.settings.live.nextEvent {
+                    Stepper(value: binding(\.live.eventLeadMinutes), in: 5...240, step: 5) {
+                        Text("À partir de \(state.settings.live.eventLeadMinutes) min avant le début")
+                    }
+                }
+                Toggle("Agents IA actifs ou en attente", isOn: binding(\.live.agents))
+                Toggle("Nombre d’e-mails non lus", isOn: binding(\.live.unreadMail))
+                    .disabled(!state.settings.modules.gmail)
+            } header: {
+                Text("Affichage continu (notch au repos)")
+            } footer: {
+                Text("Une seule information à la fois, par priorité : agent en attente, réunion proche, média, agents actifs, e-mails. Les notifications ponctuelles passent devant.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Section("Concentration") {
                 Picker("Mode", selection: binding(\.focusMode)) {
                     Text("Normal").tag(FocusMode.normal)

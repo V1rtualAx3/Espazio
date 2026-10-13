@@ -262,7 +262,10 @@ final class GoogleController {
         guard let state else { return }
         state.gmailStatus = .connected(account: snapshot.account)
         state.googleAccount = snapshot.account
-        state.unreadCount = snapshot.unreadCount
+        if state.unreadCount != snapshot.unreadCount {
+            state.unreadCount = snapshot.unreadCount
+            coordinator?.refreshLiveActivity()
+        }
         if state.mail != snapshot.messages { state.mail = snapshot.messages }
         let fresh = snapshot.messages.filter { snapshot.newMessageIDs.contains($0.id) }
         let now = Date()

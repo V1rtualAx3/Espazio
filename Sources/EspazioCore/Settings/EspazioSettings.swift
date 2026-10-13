@@ -116,6 +116,8 @@ public struct EspazioSettings: Sendable, Codable, Equatable {
     /// Context-aware focus: reduce interruptions during meetings / full screen.
     public var contextualFocus = true
     public var modules = ModuleSettings()
+    /// Information kept visible in the notch at rest.
+    public var live = LiveActivitySettings()
     /// Gmail / Chat sync interval in seconds (clamped to 60...3600).
     public var googleSyncInterval: Double = 180
     /// Seconds before an unanswered agent request is denied (clamped to 15...600).
@@ -139,6 +141,7 @@ public struct EspazioSettings: Sendable, Codable, Equatable {
         focusMode = (try? c.decodeIfPresent(FocusMode.self, forKey: .focusMode)) ?? d.focusMode
         contextualFocus = try c.decodeIfPresent(Bool.self, forKey: .contextualFocus) ?? d.contextualFocus
         modules = (try? c.decodeIfPresent(ModuleSettings.self, forKey: .modules)) ?? d.modules
+        live = (try? c.decodeIfPresent(LiveActivitySettings.self, forKey: .live)) ?? d.live
         googleSyncInterval = try c.decodeIfPresent(Double.self, forKey: .googleSyncInterval) ?? d.googleSyncInterval
         agentRequestTimeout = try c.decodeIfPresent(Double.self, forKey: .agentRequestTimeout) ?? d.agentRequestTimeout
         quickActionsShortcut = (try? c.decodeIfPresent(KeyShortcut.self, forKey: .quickActionsShortcut)) ?? d.quickActionsShortcut

@@ -33,6 +33,7 @@ SwiftUI + AppKit natifs, monochrome, local-first, sans Electron ni WebView.
 | Google | Google Chat : espaces, messages, réponse | Partielle — comptes Workspace avec app Chat configurée |
 | Google | Google Agenda direct + dédoublonnage EventKit | Opérationnelle* |
 | Focus | Modes Normal / Concentré / Silencieux, réunion & plein écran | Opérationnelle* |
+| Notch | Affichage continu au repos (média, compte à rebours de réunion, agents, non-lus), au choix | Opérationnelle* |
 | Focus | Synchronisation avec les modes Concentration macOS | Indisponible — pas d’API publique adaptée |
 | Actions rapides | Palette ⌃⌥Espace, recherche locale, « + rappel demain 9h » | Opérationnelle* |
 | Diagnostic | Mémoire, CPU, compteurs (à la demande) | Opérationnelle* |

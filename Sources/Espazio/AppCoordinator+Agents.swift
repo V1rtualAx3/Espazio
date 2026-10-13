@@ -122,6 +122,7 @@ extension AppCoordinator {
 
     func publishSessions() {
         state.sessions = sessionStore.ordered
+        refreshLiveActivity()
     }
 
     // MARK: - Actions

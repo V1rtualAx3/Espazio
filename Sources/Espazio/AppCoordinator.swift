@@ -24,6 +24,7 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     private var router = ActivityRouter()
     private var expiryTimer: Timer?
     private var scheduleTimer: Timer?
+    private var liveTimer: Timer?
 
     // Modules
     let spotify = SpotifyProvider()
@@ -129,6 +130,9 @@ final class AppCoordinator: EspazioActions, SettingsActions {
         }
         if settings.modules != old.modules {
             restartModules(old: old.modules, new: settings.modules)
+        }
+        if settings.live != old.live || settings.modules != old.modules {
+            refreshLiveActivity()
         }
         if settings.googleSyncInterval != old.googleSyncInterval || settings.googleClientID != old.googleClientID {
             google?.restart()
@@ -290,7 +294,7 @@ final class AppCoordinator: EspazioActions, SettingsActions {
         state.mediaAvailable = spotify.isRunning
         let now = Date()
         guard let playing else {
-            dismissActivity(key: PeekKeys.nowPlaying)
+            refreshLiveActivity()
             return
         }
         if playing.state == .playing, previous?.trackID != playing.trackID, previous != nil {
@@ -298,10 +302,53 @@ final class AppCoordinator: EspazioActions, SettingsActions {
                 source: .media, priority: .p3, coalescingKey: PeekKeys.trackChange, title: playing.title,
                 subtitle: playing.artist, symbol: "music.note", createdAt: now, expiresAt: now.addingTimeInterval(3)))
         }
-        // P4 discreet presence while playing; fades out a few seconds after pause.
-        post(ActivityItem(
-            source: .media, priority: .p4, coalescingKey: PeekKeys.nowPlaying, title: playing.title, subtitle: playing.artist,
-            symbol: "music.note", createdAt: now, expiresAt: playing.state == .playing ? nil : now.addingTimeInterval(4)))
+        refreshLiveActivity()
+    }
+
+    // MARK: - Continuous information ("affichage continu")
+
+    /// Re-selects the single item kept in the notch at rest and schedules one timer for the next
+    /// moment the choice can change by itself (a meeting entering its lead window or ending).
+    func refreshLiveActivity() {
+        let now = Date()
+        let modules = state.settings.modules
+        let agentSessions = state.sessions.filter { session in
+            switch session.provider {
+            case .claudeCode: return modules.claudeCode
+            case .codex: return modules.codex
+            case .chatGPT: return modules.chatGPT
+            }
+        }
+        let inputs = LiveActivityInputs(
+            nowPlaying: modules.media ? state.nowPlaying : nil,
+            nextEvent: (modules.calendar || modules.googleCalendar) ? state.nextEvent(now: now) : nil,
+            waitingAgents: agentSessions.filter { $0.state == .waiting }.count,
+            activeAgents: agentSessions.filter { $0.state == .active }.count,
+            unreadMail: modules.gmail ? state.unreadCount : nil)
+        let settings = state.settings.live
+        let selected = LiveActivityPlanner.select(inputs, settings: settings, now: now)
+        var changed = false
+        for key in LiveActivityKey.all where key != selected?.coalescingKey {
+            if router.dismiss(coalescingKey: key) != nil { changed = true }
+        }
+        if let selected {
+            switch router.post(selected, now: now) {
+            case .duplicate, .muted: break
+            default: changed = true
+            }
+        }
+        if changed { publish() }
+
+        liveTimer?.invalidate()
+        liveTimer = nil
+        if let next = LiveActivityPlanner.nextChange(inputs, settings: settings, now: now) {
+            let timer = Timer(fire: next.addingTimeInterval(0.5), interval: 0, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshLiveActivity() }
+            }
+            timer.tolerance = 2
+            RunLoop.main.add(timer, forMode: .common)
+            liveTimer = timer
+        }
     }
 
     private func stopMedia() {
@@ -348,6 +395,7 @@ final class AppCoordinator: EspazioActions, SettingsActions {
     func mergeEvents() {
         state.events = CalendarDeduplicator.merge(eventKit: eventKitEvents, google: googleEvents)
         rescheduleTimers()
+        refreshLiveActivity()
     }
 
     /// One timer aligned on the next boundary that matters (5 min before an event, its start or

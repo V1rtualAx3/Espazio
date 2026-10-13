@@ -68,6 +68,51 @@ final class ModelTests: XCTestCase {
         XCTAssertNil(unknown.progress(at: t))
     }
 
+    func testLiveActivitySelection() {
+        let now = date(13, 10)
+        var settings = LiveActivitySettings()
+        let playing = NowPlaying(trackID: "t", title: "Thunderstruck", artist: "AC/DC", state: .playing, positionDate: now)
+        var paused = playing
+        paused.state = .paused
+        let meeting = CalendarEvent(id: "e", title: "Daily", start: date(13, 10, 20), end: date(13, 10, 35), source: .eventKit)
+        let later = CalendarEvent(id: "l", title: "Plus tard", start: date(13, 15), end: date(13, 16), source: .eventKit)
+
+        XCTAssertNil(LiveActivityPlanner.select(.init(), settings: settings, now: now))
+        XCTAssertEqual(LiveActivityPlanner.select(.init(nowPlaying: playing), settings: settings, now: now)?.coalescingKey, LiveActivityKey.media)
+        XCTAssertNil(LiveActivityPlanner.select(.init(nowPlaying: paused), settings: settings, now: now), "paused hidden by default")
+        settings.mediaWhenPaused = true
+        XCTAssertEqual(LiveActivityPlanner.select(.init(nowPlaying: paused), settings: settings, now: now)?.symbol, "pause.fill")
+
+        let withMeeting = LiveActivityInputs(nowPlaying: playing, nextEvent: meeting)
+        let selected = LiveActivityPlanner.select(withMeeting, settings: settings, now: now)
+        XCTAssertEqual(selected?.coalescingKey, LiveActivityKey.event, "imminent meeting beats media")
+        XCTAssertEqual(selected?.subtitle, "Dans 20 min")
+        XCTAssertEqual(LiveActivityPlanner.select(.init(nowPlaying: playing, nextEvent: later), settings: settings, now: now)?.coalescingKey,
+                       LiveActivityKey.media, "meeting outside the lead window")
+        XCTAssertEqual(LiveActivityPlanner.nextChange(.init(nextEvent: later), settings: settings, now: now), date(13, 14, 30))
+
+        XCTAssertEqual(LiveActivityPlanner.select(.init(nextEvent: meeting, waitingAgents: 1), settings: settings, now: now)?.coalescingKey,
+                       LiveActivityKey.agents, "waiting agent first")
+        XCTAssertEqual(LiveActivityPlanner.select(.init(activeAgents: 2), settings: settings, now: now)?.subtitle, "2 actifs")
+        XCTAssertNil(LiveActivityPlanner.select(.init(unreadMail: 3), settings: settings, now: now), "mail off by default")
+        settings.unreadMail = true
+        XCTAssertEqual(LiveActivityPlanner.select(.init(unreadMail: 3), settings: settings, now: now)?.subtitle, "3 non lus")
+
+        let item = LiveActivityPlanner.select(.init(nowPlaying: playing), settings: settings, now: now)
+        XCTAssertEqual(item?.priority, .p4)
+        XCTAssertNil(item?.expiresAt)
+        var router = ActivityRouter()
+        router.post(item!, now: now)
+        XCTAssertEqual(router.post(LiveActivityPlanner.select(.init(nowPlaying: playing), settings: settings, now: now.addingTimeInterval(60))!, now: now), .duplicate)
+    }
+
+    func testLiveSettingsDecoding() {
+        let decoded = EspazioSettings.decode(Data(#"{"live":{"eventLeadMinutes":1000,"unreadMail":true}}"#.utf8))
+        XCTAssertEqual(decoded.live.eventLeadMinutes, 240)
+        XCTAssertTrue(decoded.live.unreadMail)
+        XCTAssertTrue(decoded.live.media)
+    }
+
     func testPositionNormalization() {
         XCTAssertEqual(NowPlaying.normalizedPosition(42, duration: 292), 42)
         XCTAssertEqual(NowPlaying.normalizedPosition(130_500, duration: 292), 130.5, "milliseconds converted")

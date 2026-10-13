@@ -113,6 +113,15 @@ struct PeekView: View {
     private var trailing: some View {
         if let progress = item.progress {
             EZProgressBar(value: progress).frame(width: 56)
+        } else if item.coalescingKey == LiveActivityKey.event, let event = state.events.first(where: { $0.id == item.reference }) {
+            // Live countdown, ticking only while the peek is on screen.
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                Text(CountdownFormatter.string(until: event.start, end: event.end, now: context.date))
+                    .font(EZFont.captionEmphasis)
+                    .foregroundStyle(EZColor.notchPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
         } else if item.coalescingKey == PeekKeys.nowPlaying {
             Image(systemName: "waveform")
                 .font(.system(size: 13, weight: .semibold))
