@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 
 scripts/build-app.sh
 
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)"
+VERSION="${ESPAZIO_VERSION:-$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)}"
 APP="build/Espazio.app"
 DMG="build/Espazio-${VERSION}.dmg"
 PKG="build/Espazio-${VERSION}.pkg"

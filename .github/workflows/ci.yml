@@ -7,8 +7,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  # Never cancel a push run: it may be publishing a release.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   linux-core:
@@ -54,3 +55,26 @@ jobs:
             build/Espazio-*.dmg
             build/Espazio-*.pkg
           retention-days: 14
+
+  release:
+    name: Release (semantic-release)
+    needs: [linux-core, macos-app]
+    if: github.event_name == 'push'
+    runs-on: macos-15
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install semantic-release
+        run: npm install --no-save --no-package-lock --no-audit --no-fund semantic-release@24 @semantic-release/exec@6 conventional-changelog-conventionalcommits@8
+      - name: Publish version (beta on work branches, release on main)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release

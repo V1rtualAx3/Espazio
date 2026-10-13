@@ -80,9 +80,9 @@ la prochaine réunion, agents IA actifs, e-mails non lus. Une seule information 
 
 ### DMG ou PKG
 
-Téléchargez l’artefact **Espazio-installers** de la
-[dernière exécution de la CI](https://github.com/V1rtualAx3/Espazio/actions/workflows/ci.yml)
-(ou d’une release) :
+Téléchargez le DMG ou le PKG depuis les
+[**Releases**](https://github.com/V1rtualAx3/Espazio/releases) : version stable (depuis `main`) ou
+pré-version bêta (branches de travail).
 
 - **DMG** — ouvrez-le et glissez Espazio dans *Applications*.
 - **PKG** — installe Espazio dans `/Applications`.
@@ -170,6 +170,7 @@ Avant de contribuer, lisez [AGENTS.md](AGENTS.md) et le [cahier des charges](ESP
 | [Intégrations IA](docs/INTEGRATIONS.md) | Claude Code, Codex, ChatGPT |
 | [Google](docs/GOOGLE_OAUTH.md) | configuration OAuth, limites de Google Chat |
 | [Mises à jour](docs/UPDATES.md) | Sparkle, clés, appcast, notarisation |
+| [Versions](docs/RELEASING.md) | semantic-release, convention de commits, releases bêta et stables |
 | [Sécurité](docs/SECURITY.md) | garanties et modèle de menace |
 | [Performance](docs/PERFORMANCE.md) | choix de conception et protocole de mesure |
 | [Checklist manuelle](docs/MANUAL_TEST_CHECKLIST.md) | validation sur Mac avant publication |
