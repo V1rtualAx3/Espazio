@@ -23,8 +23,10 @@ Chaque release GitHub contient en pièces jointes le **DMG** et le **PKG** const
 `scripts/package.sh` et test de lancement `scripts/smoke-test.sh`). Les notes de version sont générées
 depuis les commits.
 
-> Une seule branche de travail à la fois devrait publier des bêtas : deux branches parallèles partagent la
-> même série `beta` et pourraient viser le même numéro.
+> Toutes les branches de travail publient sur le même canal `beta` : une bêta compte comme précédente pour
+> toute branche qui contient son commit, et les jobs de release s’exécutent un par un. Deux branches qui
+> divergent pourraient néanmoins viser le même numéro : une seule branche de travail à la fois devrait
+> publier des bêtas.
 
 ## Convention de commits (obligatoire)
 

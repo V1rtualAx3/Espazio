@@ -3,6 +3,8 @@
 // - work branches → pre-release X.Y.Z-beta.N on every releasable commit (no changelog commit)
 // Only the branch being built is declared as the prerelease branch, so every work branch can use
 // the plain "beta" identifier (semantic-release requires one unique identifier per declared branch).
+// They all share the "beta" channel: a beta tagged from one branch counts as the previous beta for
+// any branch containing that commit (the default channel is the branch name, which ignores it).
 const current = process.env.GITHUB_REF_NAME || "";
 const isMain = current === "main";
 const workBranch = /^(claude|feature|feat|fix)\//.test(current);
@@ -13,7 +15,7 @@ const assets = [
 ];
 
 module.exports = {
-  branches: ["main", ...(workBranch ? [{ name: current, prerelease: "beta" }] : [])],
+  branches: ["main", ...(workBranch ? [{ name: current, prerelease: "beta", channel: "beta" }] : [])],
   tagFormat: "v${version}",
   plugins: [
     ["@semantic-release/commit-analyzer", {
