@@ -69,7 +69,12 @@ final class ApprovalCenterTests: XCTestCase {
         let center = ApprovalCenter()
         async let first = center.submit(Self.request())
         async let second = center.submit(Self.request())
-        await waitForPending(center, count: 1)
+        // Both submissions must be waiting before the decision (no race with the resolution).
+        for _ in 0..<400 where await center.waiterCount(requestID: "r1") < 2 {
+            try? await Task.sleep(nanoseconds: 5_000_000)
+        }
+        let waiters = await center.waiterCount(requestID: "r1")
+        XCTAssertEqual(waiters, 2)
         await center.resolve(requestID: "r1", sessionID: "s1", response: .allowOnce)
         let values = await [first, second]
         XCTAssertEqual(values, [.allowOnce, .allowOnce])

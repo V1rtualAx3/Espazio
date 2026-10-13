@@ -155,6 +155,9 @@ public actor ApprovalCenter {
         self.audit = audit
     }
 
+    /// Number of submitters currently waiting on a pending request (diagnostics, tests).
+    public func waiterCount(requestID: String) -> Int { pending[requestID]?.waiters.count ?? 0 }
+
     /// Pending requests, oldest first.
     public var pendingRequests: [AgentRequest] { order.compactMap { pending[$0]?.request } }
 
