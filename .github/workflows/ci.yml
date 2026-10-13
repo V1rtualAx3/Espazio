@@ -38,6 +38,8 @@ jobs:
         run: swift test
       - name: Bundle Espazio.app, .dmg and .pkg (release, ad-hoc signed)
         run: scripts/package.sh
+      - name: Smoke test (launch the bundled app)
+        run: scripts/smoke-test.sh
       - name: Upload app
         uses: actions/upload-artifact@v4
         with:

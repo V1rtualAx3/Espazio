@@ -18,6 +18,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/Espazio" "$APP/Contents/MacOS/Espazio"
 cp "$BIN/espazio-hook" "$APP/Contents/MacOS/espazio-hook"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+cp Resources/MenuBar/MenuBarIcon.png Resources/MenuBar/MenuBarIcon@2x.png "$APP/Contents/Resources/"
 # Embed Sparkle.framework (resolved by SwiftPM next to the products).
 if [[ -d "$BIN/Sparkle.framework" ]]; then
     mkdir -p "$APP/Contents/Frameworks"
@@ -28,7 +29,14 @@ if command -v iconutil >/dev/null; then
     iconutil -c icns Resources/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"
 fi
 
-SIGN_FLAGS=(--force --options runtime --timestamp=none --sign "$IDENTITY")
+# Hardened runtime only with a real identity: with ad-hoc signing ("-") there is no Team ID, so
+# library validation would refuse to load the embedded Sparkle.framework and the app would die
+# at launch. Notarization requires a Developer ID anyway.
+if [[ "$IDENTITY" == "-" ]]; then
+    SIGN_FLAGS=(--force --timestamp=none --sign "$IDENTITY")
+else
+    SIGN_FLAGS=(--force --options runtime --timestamp --sign "$IDENTITY")
+fi
 codesign "${SIGN_FLAGS[@]}" "$APP/Contents/MacOS/espazio-hook"
 if [[ -d "$APP/Contents/Frameworks/Sparkle.framework" ]]; then
     # Sign Sparkle's nested helpers inside-out, then the framework.
