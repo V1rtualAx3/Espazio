@@ -54,10 +54,20 @@
 * Compilation macOS : imports CoreGraphics, constantes CoreAudio non typées, accès `mach_task_self_`
   (remplacé par `proc_pid_rusage`).
 
+### Revue indépendante (sous-agent, lecture adversariale du code critique)
+
+Aucun chemin d’autorisation sans clic trouvé. 8 défauts relevés, tous corrigés et testés quand c’était
+testable : SIGPIPE pouvant tuer l’app ; course écriture/fermeture sur le bridge ; rejeu possible d’une
+autorisation Codex après redémarrage d’app-server (ids JSON-RPC réutilisés) ; installateurs pouvant réécrire
+un fichier illisible, casser un lien symbolique ou écraser la sauvegarde d’origine ; demande orpheline si le
+hook part avant l’enregistrement ; réentrance du rafraîchissement OAuth ; callbacks loopback forgés ;
+umask non restauré en cas d’erreur.
+
 ### Tests réellement exécutés
 
-* Linux (Docker swift:6.1-noble) : `swift test` — voir le compte rendu de PR pour le nombre exact.
-* macOS (CI) : voir l’exécution GitHub Actions liée à la PR.
+* Linux (Docker swift:6.1-noble, Swift 6.1.3) : `swift test` → 108 tests, 0 échec.
+* macOS (CI `macos-15`, Xcode 16.4, Swift 6.1.2) : `swift build`, `swift test` → 114 tests (108 + 6 tests de
+  rendu SwiftUI hors écran), `scripts/build-app.sh` → `Espazio.app` signée ad hoc, `codesign --verify` OK.
 * Manuel sur Mac : **aucun**.
 
 ### Risques et limites connus

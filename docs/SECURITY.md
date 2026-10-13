@@ -17,7 +17,9 @@
 | Refus par défaut | `ApprovalCenter` : délai → `deny(timeout)`, annulation → `deny(cancelled)`, déconnexion → `deny(disconnected)` | `ApprovalCenterTests.testTimeoutDenies`, `testDisconnectCancelsSessionRequests` |
 | Aucune validation implicite | Seul un clic sur « Autoriser une fois » produit `.allowOnce` ; aucun raccourci clavier | revue `ApprovalCard` |
 | Pas d’autorisation persistante | La sortie de hook ne contient jamais `updatedPermissions` ; Codex reçoit `accept`, jamais `acceptForSession` | `ClaudeHooksTests.testPermissionOutputs`, `CodexTests.testDecisionMapping` |
-| Résolution unique / idempotente | Première résolution gagnante, les suivantes renvoient `.alreadyResolved` ; re-soumission = même décision | `testDuplicateResolutionIsIdempotent`, `testDuplicateSubmissionSharesTheSameDecision` |
+| Résolution unique / idempotente | Première résolution gagnante, les suivantes renvoient `.alreadyResolved`. Une re-soumission pendant l’attente rejoint la même décision ; après résolution, **une autorisation n’est jamais rejouée** (refus), un refus l’est | `testDuplicateResolutionIsIdempotent`, `testDuplicateSubmissionSharesTheSameDecision`, `testDenialIsReplayedButNotApproval` |
+| Annulation précoce | Une demande annulée avant d’être enregistrée (hook déjà parti) est refusée dès sa soumission | `testCancellationBeforeSubmissionDeniesImmediately` |
+| Identifiants Codex | Espace de noms par processus app-server (les ids JSON-RPC repartent de 0) ; requête sans thread refusée | revue |
 | Contrôle de session | La résolution doit porter l’identifiant de session de la demande ; un identifiant réclamé par une autre session est refusé | `testWrongSessionCannotResolve`, `testSameIDFromAnotherSessionIsRefused` |
 | Cohérence du type de réponse | Pas de réponse texte pour une commande, pas d’autorisation pour une question | `testResponseKindMustMatchRequestKind` |
 | File bornée | 64 demandes en attente max, au-delà refus | `testPendingCapacityDeniesOverflow` |
@@ -36,6 +38,8 @@ répond pas (passage à Claude Code).
 * Trames versionnées, taille max 2 Mio vérifiée **avant** allocation, délai de lecture 5 s, 32 connexions
   simultanées max.
 * Si une autre instance écoute déjà, Espazio refuse de voler la socket ; un fichier orphelin est remplacé.
+* Écriture et fermeture d’une connexion sérialisées (aucune écriture sur un descripteur réutilisé).
+* SIGPIPE ignoré dans l’app et l’assistant.
 * Pas de port réseau.
 
 Limite connue : tout processus de l’utilisateur peut se connecter au bridge et soumettre une demande
@@ -50,6 +54,14 @@ déjà exécuté sous l’utilisateur dispose de toute façon de ses droits.
   demandé au premier « marquer lu / archiver », `chat.messages.create` au premier envoi.
 * « Déconnecter » révoque le jeton chez Google puis supprime le Trousseau.
 * `invalid_grant` → jetons supprimés, état « Reconnexion nécessaire ».
+* L’écouteur loopback ignore les requêtes dont le `state` ne correspond pas (requêtes forgées) et limite
+  chaque connexion à 3 s.
+* Un rafraîchissement de jeton terminé après une déconnexion ou un nouveau consentement est ignoré.
+
+## Fichiers de configuration modifiés
+
+`~/.claude/settings.json` et `~/.codex/config.toml` : lecture illisible → aucune modification ; liens
+symboliques suivis (le lien est conservé) ; la **première** sauvegarde `*.espazio-backup` est conservée.
 
 ## Journaux
 
