@@ -210,6 +210,22 @@ final class CodexTests: XCTestCase {
         }
     }
 
+    func testFileChangeApprovalCarriesDiff() async throws {
+        let (client, transport, center, _) = makeClient()
+        try await handshake(client, transport)
+        transport.emit(#"{"method":"item/started","params":{"threadId":"th","turnId":"t","item":{"type":"fileChange","id":"fc1","changes":[{"path":"src/a.swift","kind":"update","diff":"@@ -1 +1 @@\n-old\n+new"}]}}}"#)
+        transport.emit(#"{"id":5,"method":"item/fileChange/requestApproval","params":{"threadId":"th","turnId":"t","itemId":"fc1","startedAtMs":0}}"#)
+        var pending: [AgentRequest] = []
+        for _ in 0..<100 where pending.isEmpty {
+            pending = await center.pendingRequests
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        let request = try XCTUnwrap(pending.first)
+        XCTAssertEqual(request.summary, "src/a.swift")
+        XCTAssertEqual(request.diffs.first?.lines, [.init(.hunk, "@@ -1 +1 @@"), .init(.removed, "old"), .init(.added, "new")])
+        await center.resolve(requestID: request.id, sessionID: "th", response: .deny(.user))
+    }
+
     func testDecisionMapping() {
         XCTAssertEqual(CodexAppServerClient.decision(.allowOnce, legacy: false), "accept")
         XCTAssertEqual(CodexAppServerClient.decision(.deny(.user), legacy: false), "decline")

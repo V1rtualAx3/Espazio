@@ -170,3 +170,58 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(store.sessions["a"]?.control, .approvals, "control level never downgraded by metadata")
     }
 }
+
+final class DiffTests: XCTestCase {
+    func testLineDiffWithContext() {
+        let old = (1...20).map { "line \($0)" }.joined(separator: "\n")
+        var newLines = (1...20).map { "line \($0)" }
+        newLines[9] = "line ten"
+        newLines.insert("inserted", at: 15)
+        let diff = DiffEngine.diff(path: "a.swift", old: old, new: newLines.joined(separator: "\n"))
+        XCTAssertEqual(diff.removedCount, 1)
+        XCTAssertEqual(diff.addedCount, 2)
+        XCTAssertTrue(diff.lines.contains(.init(.removed, "line 10")))
+        XCTAssertTrue(diff.lines.contains(.init(.added, "line ten")))
+        XCTAssertEqual(diff.lines.first, .init(.hunk, "…"), "leading unchanged lines elided")
+        XCTAssertFalse(diff.lines.contains(.init(.context, "line 1")))
+    }
+
+    func testNewFileAndIdenticalText() {
+        XCTAssertEqual(DiffEngine.diff(path: "n", old: "", new: "a\nb").addedCount, 2)
+        XCTAssertTrue(DiffEngine.diff(path: "s", old: "same", new: "same").lines.isEmpty)
+    }
+
+    func testLargeInputsAreBounded() {
+        let big = (0..<5000).map { "x\($0)" }.joined(separator: "\n")
+        let diff = DiffEngine.diff(path: "big", old: big, new: "")
+        XCTAssertEqual(diff.lines.count, DiffEngine.maxOutputLines)
+        XCTAssertTrue(diff.truncated)
+    }
+
+    func testUnifiedDiffParsing() {
+        let text = """
+        diff --git a/src/a.swift b/src/a.swift
+        index 1..2 100644
+        --- a/src/a.swift
+        +++ b/src/a.swift
+        @@ -1,3 +1,3 @@
+         let a = 1
+        -let b = 2
+        +let b = 3
+        diff --git a/README.md b/README.md
+        --- a/README.md
+        +++ b/README.md
+        @@ -0,0 +1 @@
+        +Hello
+        """
+        let files = DiffEngine.parseUnified(text, fallbackPath: "?")
+        XCTAssertEqual(files.map(\.path), ["src/a.swift", "README.md"])
+        XCTAssertEqual(files[0].lines, [.init(.hunk, "@@ -1,3 +1,3 @@"), .init(.context, "let a = 1"), .init(.removed, "let b = 2"), .init(.added, "let b = 3")])
+        XCTAssertEqual(DiffEngine.parseUnified("plain content\nsecond", fallbackPath: "f.txt").first?.addedCount, 2)
+    }
+
+    func testShortcutNames() {
+        XCTAssertEqual(KeyShortcut(keyCode: 122, modifiers: [.command, .shift]).displayString, "⇧⌘F1")
+        XCTAssertEqual(KeyShortcut(keyCode: 18, modifiers: [.option]).displayString, "⌥1")
+    }
+}

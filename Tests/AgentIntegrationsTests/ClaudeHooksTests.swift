@@ -34,7 +34,26 @@ final class ClaudeHooksTests: XCTestCase {
         XCTAssertEqual(request.kind, .fileChange)
         XCTAssertEqual(request.summary, "/a.swift")
         XCTAssertEqual(request.id, "claude:s:F")
-        XCTAssertTrue(request.detail?.contains("+ y") == true)
+        XCTAssertEqual(request.diffs.first?.addedCount, 1)
+    }
+
+    func testFileChangeDiffs() throws {
+        let edit = #"{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Edit","tool_input":{"file_path":"/a.swift","old_string":"let x = 1","new_string":"let x = 2"}}"#
+        let request = try XCTUnwrap(ClaudeHookMapper.approvalRequest(for: try ClaudeHookInput.decode(edit), fallbackID: "F", now: Date(), timeout: 60))
+        XCTAssertEqual(request.diffs.first?.lines, [.init(.removed, "let x = 1"), .init(.added, "let x = 2")])
+        XCTAssertNil(request.detail, "diff replaces the textual detail")
+
+        let write = #"{"session_id":"s","cwd":"/p","hook_event_name":"PermissionRequest","tool_name":"Write","tool_input":{"file_path":"notes.md","content":"a\nB\nc"}}"#
+        var readPath: String?
+        let written = try XCTUnwrap(ClaudeHookMapper.approvalRequest(
+            for: try ClaudeHookInput.decode(write), fallbackID: "F", now: Date(), timeout: 60,
+            readFile: { path in readPath = path; return "a\nb\nc" }))
+        XCTAssertEqual(readPath, "/p/notes.md")
+        XCTAssertEqual(written.diffs.first?.removedCount, 1)
+        XCTAssertEqual(written.diffs.first?.addedCount, 1)
+
+        let bash = #"{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}"#
+        XCTAssertTrue(try XCTUnwrap(ClaudeHookMapper.approvalRequest(for: try ClaudeHookInput.decode(bash), fallbackID: "F", now: Date(), timeout: 60)).diffs.isEmpty)
     }
 
     func testInteractiveToolsArePassedThrough() throws {

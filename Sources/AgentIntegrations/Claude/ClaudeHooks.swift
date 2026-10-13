@@ -87,7 +87,10 @@ public enum ClaudeHookMapper {
     }
 
     /// Builds the decision request shown in the notch, or `nil` when Espazio must not answer.
-    public static func approvalRequest(for input: ClaudeHookInput, fallbackID: String, now: Date, timeout: TimeInterval) -> AgentRequest? {
+    public static func approvalRequest(
+        for input: ClaudeHookInput, fallbackID: String, now: Date, timeout: TimeInterval,
+        readFile: (String) -> String? = ClaudeHookMapper.readTextFile
+    ) -> AgentRequest? {
         guard input.hookEventName == ClaudeHookEvent.permissionRequest.rawValue,
             let tool = input.toolName, !passThroughTools.contains(tool),
             !input.sessionID.isEmpty
@@ -119,10 +122,47 @@ public enum ClaudeHookMapper {
             summary = String(summary.prefix(maxSummaryLength)) + "\n… [tronqué — voir le terminal]"
         }
         let requestID = "claude:\(input.sessionID):\(input.toolUseID ?? fallbackID)"
+        let diffs = fileDiffs(tool: tool, input: toolInput, cwd: input.cwd, readFile: readFile)
         return AgentRequest(
             id: requestID, sessionID: input.sessionID, provider: .claudeCode, kind: kind, toolName: tool,
-            summary: summary, workingDirectory: input.cwd, detail: detail.map { Redactor.truncate($0, limit: 2000) },
-            createdAt: now, deadline: now.addingTimeInterval(timeout))
+            summary: summary, workingDirectory: input.cwd,
+            detail: (diffs.isEmpty ? detail : (tool == "Bash" ? detail : nil)).map { Redactor.truncate($0, limit: 2000) },
+            createdAt: now, deadline: now.addingTimeInterval(timeout), diffs: diffs)
+    }
+
+    /// Bounded read of the current file content (for a `Write` diff). Returns nil when the file
+    /// does not exist, is too large or is not text.
+    public static func readTextFile(_ path: String) -> String? {
+        let url = URL(fileURLWithPath: path)
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+            let size = attributes[.size] as? Int, size <= 512 * 1024,
+            let data = try? Data(contentsOf: url)
+        else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Diff preview for file-changing tools.
+    static func fileDiffs(tool: String, input: JSONValue?, cwd: String?, readFile: (String) -> String?) -> [FileDiff] {
+        guard let input else { return [] }
+        let rawPath = input["file_path"]?.stringValue ?? input["notebook_path"]?.stringValue ?? tool
+        let path = rawPath.hasPrefix("/") || cwd == nil ? rawPath : (cwd! as NSString).appendingPathComponent(rawPath)
+        switch tool {
+        case "Edit":
+            return [DiffEngine.diff(path: rawPath, old: input["old_string"]?.stringValue ?? "", new: input["new_string"]?.stringValue ?? "")]
+        case "MultiEdit":
+            let edits = (input["edits"]?.arrayValue ?? []).prefix(20)
+            var lines: [FileDiff.Line] = []
+            for (index, edit) in edits.enumerated() {
+                let diff = DiffEngine.diff(path: rawPath, old: edit["old_string"]?.stringValue ?? "", new: edit["new_string"]?.stringValue ?? "")
+                if index > 0 { lines.append(.init(.hunk, "— modification \(index + 1) —")) }
+                lines += diff.lines
+            }
+            return [FileDiff(path: rawPath, lines: Array(lines.prefix(DiffEngine.maxOutputLines)), truncated: lines.count > DiffEngine.maxOutputLines)]
+        case "Write":
+            return [DiffEngine.diff(path: rawPath, old: readFile(path) ?? "", new: input["content"]?.stringValue ?? "")]
+        default:
+            return []
+        }
     }
 
     private static func describeFileChange(tool: String, input: JSONValue?) -> String? {

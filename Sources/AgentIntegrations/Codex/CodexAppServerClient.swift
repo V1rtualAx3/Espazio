@@ -39,7 +39,7 @@ public actor CodexAppServerClient {
     private var threads: [String: String?] = [:]
     private var lastAgentMessage: [String: String] = [:]
     /// Paths touched by file-change items, used to describe approval requests.
-    private var fileChangePaths = BoundedCache<String, [String]>(countLimit: 64)
+    private var fileChanges = BoundedCache<String, [FileDiff]>(countLimit: 64, costLimit: 4_000_000)
     private var initialized = false
     /// JSON-RPC ids restart with every app-server process: namespace request ids per client.
     private let instanceID = UUID().uuidString.prefix(8)
@@ -191,8 +191,8 @@ public actor CodexAppServerClient {
             if let threadID { onEvent(.activity(sessionID: threadID, provider: .codex, message: nil)) }
         case "item/started":
             if params["item"]?["type"]?.stringValue == "fileChange", let itemID = params["item"]?["id"]?.stringValue {
-                let paths = (params["item"]?["changes"]?.arrayValue ?? []).compactMap { $0["path"]?.stringValue }
-                fileChangePaths.insert(paths, for: itemID)
+                let diffs = Self.diffs(fromChanges: params["item"]?["changes"]?.arrayValue ?? [])
+                fileChanges.insert(diffs, for: itemID, cost: diffs.reduce(0) { $0 + $1.lines.reduce(0) { $0 + $1.text.utf8.count } })
             }
         case "item/completed":
             if let threadID, params["item"]?["type"]?.stringValue == "agentMessage", let text = params["item"]?["text"]?.stringValue {
@@ -248,12 +248,18 @@ public actor CodexAppServerClient {
             onEvent(.activity(sessionID: threadID, provider: .codex, message: nil))
         case "item/fileChange/requestApproval", "applyPatchApproval":
             let itemID = params["itemId"]?.stringValue
-            var paths = itemID.flatMap { fileChangePaths.value(for: $0) } ?? []
-            if paths.isEmpty, let changes = params["fileChanges"]?.objectValue { paths = changes.keys.sorted() }
+            var diffs = itemID.flatMap { fileChanges.value(for: $0) } ?? []
+            if diffs.isEmpty, let changes = params["fileChanges"]?.objectValue {
+                diffs = changes.keys.sorted().flatMap { path in
+                    Self.diffs(fromChanges: [.object(["path": .string(path)].merging(changes[path]?.objectValue ?? [:]) { a, _ in a })])
+                }
+            }
+            let paths = diffs.map(\.path)
             let summary = paths.isEmpty ? "Modification de fichiers" : paths.joined(separator: "\n")
             let request = AgentRequest(
                 id: requestID, sessionID: threadID, provider: .codex, kind: .fileChange, toolName: "fileChange",
-                summary: summary, workingDirectory: cwd, detail: params["reason"]?.stringValue, createdAt: created, deadline: deadline)
+                summary: summary, workingDirectory: cwd, detail: params["reason"]?.stringValue, createdAt: created, deadline: deadline,
+                diffs: diffs)
             onEvent(.waiting(sessionID: threadID, provider: .codex, message: "Fichiers"))
             let response = await approvals.submit(request)
             reply(id: id, result: .object(["decision": .string(Self.decision(response, legacy: method == "applyPatchApproval"))]))
@@ -308,6 +314,17 @@ public actor CodexAppServerClient {
         case .deny(.user), .answer: return legacy ? "denied" : "decline"
         case .deny(.timeout): return legacy ? "timed_out" : "decline"
         case .deny(.cancelled), .deny(.disconnected): return legacy ? "abort" : "cancel"
+        }
+    }
+
+    /// `fileChange` items carry `changes: [{path, kind, diff}]` (unified diff or new content).
+    static func diffs(fromChanges changes: [JSONValue]) -> [FileDiff] {
+        changes.prefix(20).flatMap { change -> [FileDiff] in
+            let path = change["path"]?.stringValue ?? "?"
+            let text = change["diff"]?.stringValue ?? change["unified_diff"]?.stringValue ?? change["content"]?.stringValue
+            guard let text, !text.isEmpty else { return [FileDiff(path: path, lines: [])] }
+            let parsed = DiffEngine.parseUnified(text, fallbackPath: path)
+            return parsed.isEmpty ? [FileDiff(path: path, lines: [])] : parsed.map { FileDiff(path: path, lines: $0.lines, truncated: $0.truncated) }
         }
     }
 

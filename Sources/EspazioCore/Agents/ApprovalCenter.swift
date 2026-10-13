@@ -35,10 +35,12 @@ public struct AgentRequest: Sendable, Equatable, Identifiable, Codable {
     public let createdAt: Date
     /// After this instant the request is resolved as denied (never allowed).
     public let deadline: Date
+    /// File changes to review (empty for commands).
+    public let diffs: [FileDiff]
 
     public init(
         id: String, sessionID: String, provider: AgentProvider, kind: AgentRequestKind, toolName: String,
-        summary: String, workingDirectory: String?, detail: String?, createdAt: Date, deadline: Date
+        summary: String, workingDirectory: String?, detail: String?, createdAt: Date, deadline: Date, diffs: [FileDiff] = []
     ) {
         self.id = id
         self.sessionID = sessionID
@@ -50,6 +52,7 @@ public struct AgentRequest: Sendable, Equatable, Identifiable, Codable {
         self.detail = detail
         self.createdAt = createdAt
         self.deadline = deadline
+        self.diffs = diffs
     }
 }
 
@@ -174,7 +177,8 @@ public actor ApprovalCenter {
             let clamped = AgentRequest(
                 id: request.id, sessionID: request.sessionID, provider: request.provider, kind: request.kind,
                 toolName: request.toolName, summary: request.summary, workingDirectory: request.workingDirectory,
-                detail: request.detail, createdAt: request.createdAt, deadline: current.addingTimeInterval(timeout))
+                detail: request.detail, createdAt: request.createdAt, deadline: current.addingTimeInterval(timeout),
+                diffs: request.diffs)
             let id = request.id
             let task = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))

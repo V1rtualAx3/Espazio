@@ -37,16 +37,27 @@ public struct KeyShortcut: Sendable, Codable, Equatable, Hashable {
         return result + (Self.keyNames[keyCode] ?? "#\(keyCode)")
     }
 
-    static let keyNames: [UInt32: String] = [
+    /// ANSI virtual key codes (Carbon `kVK_*`) → printable names.
+    public static let keyNames: [UInt32: String] = [
         0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X", 8: "C", 9: "V", 11: "B", 12: "Q",
-        13: "W", 14: "E", 15: "R", 16: "Y", 17: "T", 31: "O", 32: "U", 34: "I", 35: "P", 37: "L", 38: "J",
-        40: "K", 45: "N", 46: "M", 49: "Espace", 36: "↩", 53: "⎋",
+        13: "W", 14: "E", 15: "R", 16: "Y", 17: "T", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5",
+        24: "=", 25: "9", 26: "7", 27: "-", 28: "8", 29: "0", 30: "]", 31: "O", 32: "U", 33: "[", 34: "I",
+        35: "P", 36: "↩", 37: "L", 38: "J", 39: "'", 40: "K", 41: ";", 42: "\\", 43: ",", 44: "/", 45: "N",
+        46: "M", 47: ".", 48: "⇥", 49: "Espace", 50: "`", 51: "⌫", 53: "⎋", 96: "F5", 97: "F6", 98: "F7",
+        99: "F3", 100: "F8", 101: "F9", 103: "F11", 109: "F10", 111: "F12", 118: "F4", 120: "F2", 122: "F1",
+        123: "←", 124: "→", 125: "↓", 126: "↑",
     ]
+
+    /// Keys that can never be a global shortcut on their own (handled by the recorder).
+    public static let reservedKeyCodes: Set<UInt32> = [53, 51]
 }
 
 /// Per-module switches (spec: "préférences par module").
 public struct ModuleSettings: Sendable, Codable, Equatable {
     public var media = true
+    /// Players followed when `media` is on.
+    public var spotify = true
+    public var appleMusic = true
     public var volume = true
     public var audioDevice = true
     public var battery = true
@@ -69,6 +80,8 @@ public struct ModuleSettings: Sendable, Codable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = ModuleSettings()
         media = try c.decodeIfPresent(Bool.self, forKey: .media) ?? d.media
+        spotify = try c.decodeIfPresent(Bool.self, forKey: .spotify) ?? d.spotify
+        appleMusic = try c.decodeIfPresent(Bool.self, forKey: .appleMusic) ?? d.appleMusic
         volume = try c.decodeIfPresent(Bool.self, forKey: .volume) ?? d.volume
         audioDevice = try c.decodeIfPresent(Bool.self, forKey: .audioDevice) ?? d.audioDevice
         battery = try c.decodeIfPresent(Bool.self, forKey: .battery) ?? d.battery
