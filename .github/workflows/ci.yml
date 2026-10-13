@@ -12,6 +12,32 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  commits:
+    name: Commits (Conventional Commits)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install commitlint
+        run: npm install --no-save --no-package-lock --no-audit --no-fund @commitlint/cli@19 @commitlint/config-conventional@19
+      - name: Lint commit messages
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FROM="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            FROM="${{ github.event.before }}"
+          else
+            git fetch --no-tags origin main
+            FROM="$(git merge-base origin/main HEAD)"
+          fi
+          # A new branch or a force push may report an unknown "before": fall back to main.
+          git cat-file -e "$FROM^{commit}" 2>/dev/null || FROM="$(git merge-base origin/main HEAD)"
+          npx commitlint --from "$FROM" --to HEAD --verbose
+
   linux-core:
     name: Core logic (Linux)
     runs-on: ubuntu-latest
@@ -58,7 +84,7 @@ jobs:
 
   release:
     name: Release (semantic-release)
-    needs: [linux-core, macos-app]
+    needs: [commits, linux-core, macos-app]
     if: github.event_name == 'push'
     runs-on: macos-15
     permissions:

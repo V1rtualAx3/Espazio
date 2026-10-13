@@ -17,6 +17,8 @@ module.exports = {
   tagFormat: "v${version}",
   plugins: [
     ["@semantic-release/commit-analyzer", {
+      // Conventional Commits (enforced by commitlint in CI): feat → minor, fix → patch,
+      // feat!/BREAKING CHANGE → major; perf, refactor and build also produce a patch.
       preset: "conventionalcommits",
       releaseRules: [
         { type: "perf", release: "patch" },
@@ -24,7 +26,23 @@ module.exports = {
         { type: "build", release: "patch" },
       ],
     }],
-    ["@semantic-release/release-notes-generator", { preset: "conventionalcommits" }],
+    ["@semantic-release/release-notes-generator", {
+      preset: "conventionalcommits",
+      presetConfig: {
+        types: [
+          { type: "feat", section: "Fonctionnalités" },
+          { type: "fix", section: "Corrections" },
+          { type: "perf", section: "Performance" },
+          { type: "refactor", section: "Restructuration" },
+          { type: "build", section: "Build et distribution" },
+          { type: "docs", section: "Documentation", hidden: true },
+          { type: "test", hidden: true },
+          { type: "ci", hidden: true },
+          { type: "chore", hidden: true },
+          { type: "style", hidden: true },
+        ],
+      },
+    }],
     ...(isMain ? [["@semantic-release/changelog", { changelogFile: "CHANGELOG.md", changelogTitle: "# Changelog" }]] : []),
     ["@semantic-release/exec", {
       prepareCmd: "scripts/release-build.sh ${nextRelease.version}",

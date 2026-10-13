@@ -32,7 +32,9 @@ Le numéro de version découle des messages de commit ([Conventional Commits](ht
 | `feat!: …` ou pied `BREAKING CHANGE:` | version majeure (**2**.0.0) |
 | `docs:`, `test:`, `ci:`, `chore:`, `style:` | pas de nouvelle version |
 
-Un push sans commit publiable ne crée pas de version.
+Un push sans commit publiable ne crée pas de version. Le job CI `Commits` (commitlint,
+`commitlint.config.js`) refuse tout message non conforme ; les notes de version regroupent les commits par
+sections (Fonctionnalités, Corrections, Performance…).
 
 ## Prérequis du dépôt
 

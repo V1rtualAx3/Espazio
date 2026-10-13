@@ -47,5 +47,5 @@ Tu es responsable de l’architecture, de l’implémentation, de la relecture c
   - `scripts/build-app.sh` (macOS) : assemble et signe ad hoc `build/Espazio.app`.
 - CI : `.github/workflows/ci.yml` (job Linux pour la logique, job macOS pour l’app complète).
 - Un test qui n’a pas tourné sur Mac doit être signalé « non vérifié sur Mac ».
-- Commits au format **Conventional Commits** (`feat:`, `fix:`, `docs:`…) : ils déterminent les versions
+- Voir aussi `CLAUDE.md`. Commits au format **Conventional Commits** (vérifiés par commitlint en CI) (`feat:`, `fix:`, `docs:`…) : ils déterminent les versions
   publiées par semantic-release (bêta sur les branches de travail, release sur `main`). Voir `docs/RELEASING.md`.
