@@ -87,6 +87,11 @@ jobs:
     needs: [commits, linux-core, macos-app]
     if: github.event_name == 'push'
     runs-on: macos-15
+    # One release at a time across all branches: two branches computing the next
+    # beta concurrently would both pick the same tag.
+    concurrency:
+      group: release
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
