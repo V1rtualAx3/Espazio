@@ -33,6 +33,6 @@ SIGN_ARGS=()
 if [[ -n "${INSTALLER_IDENTITY:-}" ]]; then SIGN_ARGS=(--sign "$INSTALLER_IDENTITY"); fi
 rm -f "$PKG"
 pkgbuild --root "$PKG_ROOT" --component-plist "$COMPONENT_PLIST" --identifier app.espazio.Espazio.pkg \
-  --version "$VERSION" --install-location / "${SIGN_ARGS[@]}" "$PKG" >/dev/null
+  --version "$VERSION" --install-location / ${SIGN_ARGS[@]+"${SIGN_ARGS[@]}"} "$PKG" >/dev/null
 rm -rf "$PKG_ROOT" "$COMPONENT_PLIST"
 echo "Built $PKG ($(du -h "$PKG" | cut -f1))"
