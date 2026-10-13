@@ -39,6 +39,23 @@ SwiftUI + AppKit natifs, monochrome, local-first, sans Electron ni WebView.
 
 \* Compilée et couverte par des tests automatisés ; comportement réel à confirmer avec la checklist manuelle.
 
+## Tester en local (DMG / PKG)
+
+Chaque exécution de la CI publie l’artefact **Espazio-installers** (onglet *Actions* › exécution › *Artifacts*),
+qui contient `Espazio-<version>.dmg` et `Espazio-<version>.pkg`. Pour les produire soi-même sur un Mac :
+`scripts/package.sh` → `build/`.
+
+Ces builds sont **signés ad hoc, non notarisés** : macOS les bloque au premier lancement.
+
+* **DMG** : ouvrir, glisser *Espazio* dans *Applications*, puis clic droit sur l’app › **Ouvrir** › Ouvrir.
+  Si macOS refuse : Réglages Système › Confidentialité et sécurité › **Ouvrir quand même**, ou
+  `xattr -dr com.apple.quarantine /Applications/Espazio.app`.
+* **PKG** : clic droit › **Ouvrir** (ou *Ouvrir quand même* dans Confidentialité et sécurité), puis suivre
+  l’installeur ; l’app est installée dans `/Applications`.
+
+Désinstaller : quitter Espazio (barre des menus › Quitter), retirer les hooks dans Réglages › Agents IA,
+puis supprimer `/Applications/Espazio.app` et `~/Library/Application Support/Espazio`.
+
 ## Installation (depuis les sources)
 
 Prérequis : macOS 14 ou plus récent, Xcode 16 ou plus récent (Swift 6).
@@ -50,10 +67,7 @@ cp -R build/Espazio.app /Applications/
 open /Applications/Espazio.app
 ```
 
-La CI publie aussi `Espazio.app` (artefact *Espazio-app* de chaque exécution, signature ad hoc :
-clic droit › Ouvrir au premier lancement).
-
-Distribution signée : `CODESIGN_IDENTITY="Developer ID Application: …" scripts/build-app.sh`, puis
+Distribution signée : `CODESIGN_IDENTITY="Developer ID Application: …" INSTALLER_IDENTITY="Developer ID Installer: …" scripts/package.sh`, puis
 `xcrun notarytool submit build/Espazio.zip --keychain-profile … --wait` et
 `xcrun stapler staple build/Espazio.app`.
 
