@@ -127,7 +127,12 @@ public final class UnixSocket: @unchecked Sendable {
         return Data(buffer)
     }
 
+    /// Serialized with `close()`: bytes are never written to a descriptor number that was
+    /// closed and possibly reused by another connection.
     public func writeAll(_ data: Data) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !isClosed else { throw SocketError.closed }
         try data.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
             var offset = 0

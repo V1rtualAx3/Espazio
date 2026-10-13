@@ -88,7 +88,7 @@ private struct TabButton: View {
 private struct FocusMenu: View {
     let mode: FocusMode
     let pending: Int
-    let onSelect: (FocusMode) -> Void
+    let onSelect: @MainActor (FocusMode) -> Void
 
     var body: some View {
         Menu {

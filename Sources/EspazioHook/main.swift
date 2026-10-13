@@ -32,6 +32,7 @@ func runCodexNotify(_ payload: String) -> Int32 {
 }
 
 func run() -> Int32 {
+    signal(SIGPIPE, SIG_IGN)
     let arguments = CommandLine.arguments
     if arguments.count >= 3, arguments[1] == CodexNotify.argument {
         return runCodexNotify(arguments[2])

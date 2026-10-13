@@ -59,15 +59,16 @@ public final class LoopbackReceiver: @unchecked Sendable {
     }
 
     /// Waits for the OAuth redirect and returns its query parameters.
-    public func waitForCallback(timeout: TimeInterval) async throws -> [String: String] {
+    /// Requests whose `state` differs from `expectedState` (forged or stale) are ignored.
+    public func waitForCallback(timeout: TimeInterval, expectedState: String? = nil) async throws -> [String: String] {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async { [self] in
-                continuation.resume(with: Result { try self.acceptCallback(deadline: Date().addingTimeInterval(timeout)) })
+                continuation.resume(with: Result { try self.acceptCallback(deadline: Date().addingTimeInterval(timeout), expectedState: expectedState) })
             }
         }
     }
 
-    private func acceptCallback(deadline: Date) throws -> [String: String] {
+    private func acceptCallback(deadline: Date, expectedState: String?) throws -> [String: String] {
         defer { shutdown() }
         while true {
             let remaining = deadline.timeIntervalSinceNow
@@ -78,13 +79,17 @@ public final class LoopbackReceiver: @unchecked Sendable {
             guard ready > 0 else { throw OAuthError.timeout }
             let client = accept(fd, nil, nil)
             guard client >= 0 else { continue }
+            #if canImport(Darwin)
+            var on: Int32 = 1
+            setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+            #endif
             defer { _ = close(client) }
             guard let query = Self.readRequestQuery(client) else {
                 Self.respond(client, status: "404 Not Found", body: "")
                 continue
             }
             // Ignore unrelated requests (favicon…) and keep waiting for the real callback.
-            guard query["code"] != nil || query["error"] != nil else {
+            guard query["code"] != nil || query["error"] != nil, expectedState == nil || query["state"] == expectedState else {
                 Self.respond(client, status: "404 Not Found", body: "")
                 continue
             }
@@ -98,9 +103,13 @@ public final class LoopbackReceiver: @unchecked Sendable {
         let capacity = 8192
         var buffer = [UInt8](repeating: 0, count: capacity)
         var total = 0
+        // Overall per-connection deadline: a slow client cannot stall the listener.
+        let deadline = Date().addingTimeInterval(3)
         while total < capacity {
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0 else { break }
             var descriptor = pollfd(fd: client, events: Int16(POLLIN), revents: 0)
-            guard poll(&descriptor, 1, 5000) > 0 else { break }
+            guard poll(&descriptor, 1, Int32(remaining * 1000)) > 0 else { break }
             let received = buffer.withUnsafeMutableBytes { recv(client, $0.baseAddress! + total, capacity - total, 0) }
             if received <= 0 { break }
             total += received
@@ -126,7 +135,12 @@ public final class LoopbackReceiver: @unchecked Sendable {
 
     private static func respond(_ client: Int32, status: String, body: String) {
         let response = "HTTP/1.1 \(status)\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n\(body)"
-        _ = response.withCString { send(client, $0, strlen($0), 0) }
+        #if canImport(Darwin)
+        let flags: Int32 = 0
+        #else
+        let flags = Int32(MSG_NOSIGNAL)
+        #endif
+        _ = response.withCString { send(client, $0, strlen($0), flags) }
     }
 
     private static func page(success: Bool) -> String {

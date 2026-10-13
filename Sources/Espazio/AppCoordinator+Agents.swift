@@ -84,6 +84,8 @@ extension AppCoordinator {
             self.publishSessions()
         }
         let approvals = self.approvals
+        // The hook may already be gone (Claude interrupted during the hops above).
+        guard !Task.isCancelled else { return BridgeReply(id: request.id, status: .passThrough) }
         let response = await withTaskCancellationHandler {
             await approvals.submit(approval)
         } onCancel: {
@@ -166,6 +168,8 @@ extension AppCoordinator {
             settingsWindow.lastError = installed
                 ? "Hooks installés. Une sauvegarde de settings.json a été créée (settings.json.espazio-backup)."
                 : "Hooks retirés."
+        } catch ClaudeHookInstaller.InstallError.unreadableSettingsFile {
+            settingsWindow.lastError = "~/.claude/settings.json est illisible : aucune modification."
         } catch ClaudeHookInstaller.InstallError.helperNotFound {
             settingsWindow.lastError = "Assistant espazio-hook introuvable : lancez Espazio depuis l’application assemblée (scripts/build-app.sh)."
         } catch {
@@ -174,14 +178,19 @@ extension AppCoordinator {
     }
 
     func installCodexNotify() {
-        let url = CodexNotify.defaultConfigURL()
-        let existing = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        let url = CodexNotify.defaultConfigURL().resolvingSymlinksInPath()
+        let original: Data?
+        do {
+            original = try ConfigFile.read(url)
+        } catch {
+            settingsWindow.lastError = "~/.codex/config.toml est illisible : aucune modification."
+            return
+        }
+        let existing = original.map { String(decoding: $0, as: UTF8.self) } ?? ""
         switch CodexNotify.installing(into: existing, helperPath: helperPath) {
         case let .installed(text):
             do {
-                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-                if !existing.isEmpty { try existing.write(to: url.appendingPathExtension("espazio-backup"), atomically: true, encoding: .utf8) }
-                try text.write(to: url, atomically: true, encoding: .utf8)
+                try ConfigFile.write(Data(text.utf8), to: url, original: original)
                 settingsWindow.lastError = "Suivi Codex CLI activé (~/.codex/config.toml)."
             } catch {
                 settingsWindow.lastError = "Impossible d’écrire ~/.codex/config.toml."

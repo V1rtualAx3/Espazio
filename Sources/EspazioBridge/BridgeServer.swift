@@ -72,10 +72,13 @@ public final class BridgeServer: @unchecked Sendable {
 
         let socket = try UnixSocket.makeStream()
         let previousMask = umask(0o177)
-        let bound = try UnixSocket.withAddress(path: path) { address, length in
-            systemBind(socket.fd, address, length)
+        let bound: Int32
+        do {
+            defer { umask(previousMask) }
+            bound = try UnixSocket.withAddress(path: path) { address, length in
+                systemBind(socket.fd, address, length)
+            }
         }
-        umask(previousMask)
         guard bound == 0 else { throw SocketError.system(operation: "bind", code: errno) }
         _ = chmod(path, 0o600)
         guard systemListen(socket.fd, 16) == 0 else { throw SocketError.system(operation: "listen", code: errno) }

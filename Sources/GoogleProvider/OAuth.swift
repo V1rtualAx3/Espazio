@@ -226,6 +226,9 @@ public actor GoogleAuthSession {
     private let now: @Sendable () -> Date
     private var tokens: OAuthTokens?
     private var refreshTask: Task<OAuthTokens, Error>?
+    /// Bumped by install/sign-out so a refresh that finishes afterwards cannot resurrect or
+    /// overwrite newer tokens.
+    private var generation = 0
 
     public init(client: GoogleOAuthClient, store: TokenStore, now: @escaping @Sendable () -> Date = { Date() }) {
         self.client = client
@@ -247,6 +250,7 @@ public actor GoogleAuthSession {
             merged.scopes.formUnion(tokens.scopes)
         }
         tokens = merged
+        generation += 1
         try store.save(merged)
     }
 
@@ -258,13 +262,19 @@ public actor GoogleAuthSession {
         let client = self.client
         let task = Task { try await client.refresh(current) }
         refreshTask = task
+        let startGeneration = generation
         defer { refreshTask = nil }
         do {
             let refreshed = try await task.value
+            guard generation == startGeneration else {
+                guard let tokens else { throw OAuthError.notConfigured }
+                return tokens.accessToken
+            }
             tokens = refreshed
             try? store.save(refreshed)
             return refreshed.accessToken
         } catch OAuthError.invalidGrant {
+            guard generation == startGeneration else { throw OAuthError.invalidGrant }
             tokens = nil
             store.delete()
             throw OAuthError.invalidGrant
@@ -277,6 +287,7 @@ public actor GoogleAuthSession {
             await client.revoke(token)
         }
         tokens = nil
+        generation += 1
         store.delete()
     }
 }

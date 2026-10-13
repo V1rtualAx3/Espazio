@@ -202,7 +202,15 @@ final class NotchWindowController: NSObject, NSWindowDelegate {
     }
 
     @objc private func clicked() {
-        guard presentation.state != .expanded else { return }
+        guard presentation.state != .expanded else {
+            // Opened by hover (not key): a click makes text fields usable, still without
+            // activating the application.
+            if !panel.isKeyWindow {
+                panel.allowsKey = true
+                panel.makeKey()
+            }
+            return
+        }
         hoverTask?.cancel()
         expand(tab: coordinator?.preferredTab(), makeKey: true)
     }

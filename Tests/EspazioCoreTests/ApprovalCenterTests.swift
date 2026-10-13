@@ -73,9 +73,9 @@ final class ApprovalCenterTests: XCTestCase {
         await center.resolve(requestID: "r1", sessionID: "s1", response: .allowOnce)
         let values = await [first, second]
         XCTAssertEqual(values, [.allowOnce, .allowOnce])
-        // A late retry gets the recorded decision immediately.
+        // A late retry never re-uses the approval.
         let retry = await center.submit(Self.request())
-        XCTAssertEqual(retry, .allowOnce)
+        XCTAssertEqual(retry, .deny(.cancelled))
     }
 
     func testSameIDFromAnotherSessionIsRefused() async {
@@ -118,6 +118,25 @@ final class ApprovalCenterTests: XCTestCase {
         await center.resolve(requestID: "cmd", sessionID: "s1", response: .deny(.user))
         let values = await [command, question]
         XCTAssertEqual(values, [.deny(.user), .answer("oui")])
+    }
+
+    func testDenialIsReplayedButNotApproval() async {
+        let center = ApprovalCenter()
+        async let first = center.submit(Self.request(id: "d"))
+        await waitForPending(center, count: 1)
+        await center.resolve(requestID: "d", sessionID: "s1", response: .deny(.user))
+        _ = await first
+        let again = await center.submit(Self.request(id: "d"))
+        XCTAssertEqual(again, .deny(.user))
+    }
+
+    func testCancellationBeforeSubmissionDeniesImmediately() async {
+        let center = ApprovalCenter()
+        await center.cancel(requestID: "early", reason: .disconnected)
+        let response = await center.submit(Self.request(id: "early"))
+        XCTAssertNotEqual(response, .allowOnce)
+        let pending = await center.pendingRequests
+        XCTAssertTrue(pending.isEmpty)
     }
 
     func testUnknownRequest() async {

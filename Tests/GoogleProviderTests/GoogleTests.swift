@@ -166,9 +166,10 @@ final class OAuthTests: XCTestCase {
         Task.detached {
             try? await Task.sleep(nanoseconds: 100_000_000)
             rawGet(port: port, path: "/favicon.ico")
+            rawGet(port: port, path: "/?state=forged&error=access_denied")
             rawGet(port: port, path: "/?state=s1&code=4%2Fabc")
         }
-        let query = try await receiver.waitForCallback(timeout: 5)
+        let query = try await receiver.waitForCallback(timeout: 5, expectedState: "s1")
         XCTAssertEqual(query["code"], "4/abc")
         XCTAssertEqual(query["state"], "s1")
     }

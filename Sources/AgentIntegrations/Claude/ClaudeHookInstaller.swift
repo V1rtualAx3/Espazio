@@ -7,6 +7,7 @@ import Foundation
 public enum ClaudeHookInstaller {
     public enum InstallError: Error, Equatable {
         case invalidSettingsFile
+        case unreadableSettingsFile
         case helperNotFound(String)
     }
 
@@ -68,13 +69,11 @@ public enum ClaudeHookInstaller {
     public static func apply(install: Bool, helperPath: String, settingsURL: URL = defaultSettingsURL()) throws {
         let manager = FileManager.default
         if install, !manager.isExecutableFile(atPath: helperPath) { throw InstallError.helperNotFound(helperPath) }
-        let existing = try? Data(contentsOf: settingsURL)
+        // Write through symlinks (dotfiles setups) instead of replacing them.
+        let target = settingsURL.resolvingSymlinksInPath()
+        let existing = try ConfigFile.read(target)
         let updated = install ? try installing(into: existing, helperPath: helperPath) : try removing(from: existing)
-        try manager.createDirectory(at: settingsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if let existing {
-            try existing.write(to: settingsURL.appendingPathExtension("espazio-backup"), options: .atomic)
-        }
-        try updated.write(to: settingsURL, options: .atomic)
+        try ConfigFile.write(updated, to: target, original: existing)
     }
 
     // MARK: - Private
@@ -109,5 +108,31 @@ public enum ClaudeHookInstaller {
 
     static func shellQuoted(_ path: String) -> String {
         "'" + path.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
+    }
+}
+
+/// Safe read / write of a user configuration file.
+public enum ConfigFile {
+    /// `nil` only when the file does not exist; any other read error aborts the change so the
+    /// file is never rewritten from scratch.
+    public static func read(_ url: URL) throws -> Data? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        do {
+            return try Data(contentsOf: url)
+        } catch {
+            throw ClaudeHookInstaller.InstallError.unreadableSettingsFile
+        }
+    }
+
+    /// Keeps the *first* backup (`<file>.espazio-backup`), so the original survives repeated
+    /// install / uninstall cycles.
+    public static func write(_ data: Data, to url: URL, original: Data?) throws {
+        let manager = FileManager.default
+        try manager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let backup = url.appendingPathExtension("espazio-backup")
+        if let original, !manager.fileExists(atPath: backup.path) {
+            try original.write(to: backup, options: .atomic)
+        }
+        try data.write(to: url, options: .atomic)
     }
 }

@@ -137,7 +137,7 @@ final class GoogleController {
                     scopes: scopes, redirectURI: receiver.redirectURI, state: expectedState,
                     codeChallenge: PKCE.challenge(for: verifier), firstConsent: firstConsent)
                 NSWorkspace.shared.open(url)
-                let query = try await receiver.waitForCallback(timeout: 300)
+                let query = try await receiver.waitForCallback(timeout: 300, expectedState: expectedState)
                 let code = try GoogleOAuthClient.code(fromRedirect: query, expectedState: expectedState)
                 let tokens = try await client.exchange(code: code, verifier: verifier, redirectURI: receiver.redirectURI)
                 try await session.install(tokens)

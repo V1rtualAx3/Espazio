@@ -5,6 +5,9 @@ import AppKit
 @MainActor
 enum EspazioMain {
     static func main() {
+        // A peer that vanishes (codex app-server, browser on the OAuth loopback) must surface as
+        // EPIPE, never kill the app.
+        signal(SIGPIPE, SIG_IGN)
         let application = NSApplication.shared
         let delegate = AppDelegate()
         application.delegate = delegate

@@ -112,7 +112,8 @@ public struct ApprovalAuditEvent: Sendable, Equatable {
 /// - deny by default: timeouts, cancellations and disconnections resolve as `.deny`;
 /// - a request is resolved at most once; later resolutions return `.alreadyResolved`;
 /// - resolving requires the matching session identifier;
-/// - re-submitting a known request id (helper retry) waits for / returns the same response.
+/// - re-submitting a pending request id joins the same decision; re-submitting a resolved one
+///   returns a denial (an approval is never replayed).
 public actor ApprovalCenter {
     public static let minimumTimeout: TimeInterval = 5
     public static let maximumTimeout: TimeInterval = 600
@@ -158,7 +159,9 @@ public actor ApprovalCenter {
     /// user explicitly resolved it with `.allowOnce`.
     public func submit(_ request: AgentRequest) async -> AgentResponse {
         if let done = resolved[request.id] {
-            return done.sessionID == request.sessionID ? done.response : .deny(.cancelled)
+            // A late re-submission never re-uses an approval: "allow once" means once.
+            guard done.sessionID == request.sessionID, !done.response.isAllowed else { return .deny(.cancelled) }
+            return done.response
         }
         if let existing = pending[request.id], existing.request.sessionID != request.sessionID {
             // Same id claimed by another session: refuse the newcomer, keep the original.
@@ -212,6 +215,12 @@ public actor ApprovalCenter {
 
     /// Withdraws one request (the agent no longer waits for it).
     public func cancel(requestID: String, reason: DenialReason = .cancelled) {
+        if pending[requestID] == nil, resolved[requestID] == nil {
+            // Cancelled before it was submitted (client gone early): remember it so a late
+            // submission is denied immediately instead of lingering until its timeout.
+            remember(requestID, sessionID: "", response: .deny(reason))
+            return
+        }
         finish(id: requestID, response: .deny(reason))
     }
 
@@ -250,16 +259,20 @@ public actor ApprovalCenter {
         guard let entry = pending.removeValue(forKey: id) else { return }
         order.removeAll { $0 == id }
         entry.timeoutTask?.cancel()
-        resolved[id] = Resolved(sessionID: entry.request.sessionID, response: response)
+        remember(id, sessionID: entry.request.sessionID, response: response)
+        record(.resolved, entry.request, outcome: Self.describe(response))
+        for waiter in entry.waiters { waiter.resume(returning: response) }
+        broadcast()
+    }
+
+    private func remember(_ id: String, sessionID: String, response: AgentResponse) {
+        resolved[id] = Resolved(sessionID: sessionID, response: response)
         resolvedOrder.append(id)
         if resolvedOrder.count > resolvedCapacity {
             let overflow = resolvedOrder.count - resolvedCapacity
             for old in resolvedOrder.prefix(overflow) { resolved[old] = nil }
             resolvedOrder.removeFirst(overflow)
         }
-        record(.resolved, entry.request, outcome: Self.describe(response))
-        for waiter in entry.waiters { waiter.resume(returning: response) }
-        broadcast()
     }
 
     private func broadcast() {

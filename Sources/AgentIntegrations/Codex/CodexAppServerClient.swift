@@ -41,6 +41,8 @@ public actor CodexAppServerClient {
     /// Paths touched by file-change items, used to describe approval requests.
     private var fileChangePaths = BoundedCache<String, [String]>(countLimit: 64)
     private var initialized = false
+    /// JSON-RPC ids restart with every app-server process: namespace request ids per client.
+    private let instanceID = UUID().uuidString.prefix(8)
     public private(set) var isClosed = false
 
     public init(
@@ -217,8 +219,20 @@ public actor CodexAppServerClient {
     }
 
     private func handleServerRequest(id: JSONValue, method: String, params: JSONValue) async {
-        let threadID = params["threadId"]?.stringValue ?? params["conversationId"]?.stringValue ?? "codex"
-        let requestID = "codex:\(threadID):\(id.compactString())"
+        let handled: Set<String> = [
+            "item/commandExecution/requestApproval", "execCommandApproval", "item/fileChange/requestApproval",
+            "applyPatchApproval", "item/tool/requestUserInput",
+        ]
+        guard handled.contains(method) else {
+            // Never leave the server waiting on a request Espazio does not implement.
+            replyError(id: id, code: -32601, message: "Method not supported by Espazio")
+            return
+        }
+        guard let threadID = params["threadId"]?.stringValue ?? params["conversationId"]?.stringValue else {
+            replyError(id: id, code: -32602, message: "Missing thread id")
+            return
+        }
+        let requestID = "codex:\(instanceID):\(threadID):\(id.compactString())"
         let created = now()
         let deadline = created.addingTimeInterval(decisionTimeout)
         let cwd = params["cwd"]?.stringValue ?? threads[threadID] ?? nil
