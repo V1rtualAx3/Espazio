@@ -90,7 +90,7 @@ public final class EventKitProvider {
         let now = Date()
         let predicate = store.predicateForEvents(withStart: now.addingTimeInterval(-3600), end: now.addingTimeInterval(lookahead), calendars: nil)
         let events = store.events(matching: predicate)
-            .filter { $0.end > now && $0.status != .canceled }
+            .filter { $0.endDate > now && $0.status != .canceled }
             .prefix(40)
             .map { event in
                 CalendarEvent(

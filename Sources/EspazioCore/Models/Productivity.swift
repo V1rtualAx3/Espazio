@@ -118,6 +118,11 @@ public struct ReminderGroups: Sendable, Equatable {
     public var overdue: [ReminderItem]
     public var today: [ReminderItem]
 
+    public init(overdue: [ReminderItem], today: [ReminderItem]) {
+        self.overdue = overdue
+        self.today = today
+    }
+
     public var isEmpty: Bool { overdue.isEmpty && today.isEmpty }
     public var count: Int { overdue.count + today.count }
 
