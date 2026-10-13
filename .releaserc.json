@@ -25,8 +25,8 @@
         { "path": "build/Espazio-*.dmg", "label": "Espazio ${nextRelease.version} (DMG)" },
         { "path": "build/Espazio-*.pkg", "label": "Espazio ${nextRelease.version} (PKG)" }
       ],
-      "successComment": false,
-      "failComment": false,
+      "successCommentCondition": false,
+      "failCommentCondition": false,
       "releasedLabels": false
     }]
   ]
