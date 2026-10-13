@@ -4,14 +4,10 @@ Fichiers : `Resources/Brand/` (SVG vectoriels, texte vectorisé), `Resources/App
 
 ## Concept
 
-**Icône d’app** : trois silhouettes `NotchShape` emboîtées qui descendent du bord supérieur — la notch qui
-s’ouvre (repliée → aperçu → déployée). Aplats de gris, lisible dès 16 px.
-
-**Symbole du logo** : il **est** la notch d’Espazio : la silhouette reprend exactement `NotchShape`
-(`Sources/EspazioUI/NotchShape.swift`) — courbes supérieures vers l’extérieur qui se fondent dans le bord de
-l’écran, coins inférieurs arrondis. À l’intérieur, l’état **peek** du design system : une icône à gauche, une
-seule valeur à droite (barre de progression `EZProgressBar` : piste blanc 18 %, remplissage blanc).
-« Espazio » = l’espace : la notch qui s’ouvre pour faire de la place à l’information.
+Trois silhouettes `NotchShape` emboîtées (géométrie exacte de `Sources/EspazioUI/NotchShape.swift` : courbes
+supérieures vers l’extérieur, coins inférieurs arrondis) qui descendent du bord supérieur : la notch qui s’ouvre
+(repliée → aperçu → déployée). « Espazio » = l’espace : la notch qui s’ouvre pour faire de la place à
+l’information. Aplats de gris, lisible dès 16 px.
 
 ## Déclinaisons
 
@@ -19,8 +15,8 @@ seule valeur à droite (barre de progression `EZProgressBar` : piste blanc 18 %,
 |---|---|
 | `AppIcon.svg` | Icône d’app (grille macOS 1024/824, coins continus) : fond noir, notches emboîtées gris foncé / gris / blanc. Source de l’iconset. |
 | `AppIcon-Light.svg` | Variante claire (fond #F2F2F2, notches gris clair / gris / noir), pour supports clairs. |
-| `Mark-Black.svg` / `Mark-White.svg` | Symbole seul : bord d’écran + notch, contenu peek en réserve. |
-| `Logo-Black.svg` / `Logo-White.svg` | Symbole + logotype « Espazio ». |
+| `Logo-Horizontal.svg` | Logo horizontal pour fond clair : icône sombre + « Espazio » en noir. |
+| `Logo-Horizontal-White.svg` | Logo horizontal pour fond sombre : icône claire + « Espazio » en blanc (l’icône sombre disparaîtrait sur du noir). |
 
 ## Règles
 
@@ -29,7 +25,9 @@ seule valeur à droite (barre de progression `EZProgressBar` : piste blanc 18 %,
 * Aplats : pas de dégradé, de halo, d’ombre ni de flou.
 * Logotype : Inter Display SemiBold vectorisée (licence SIL OFL), équivalent ouvert de SF Pro Display,
   approche −1 %.
-* Zone de protection : la hauteur du bord d’écran du symbole ×2 tout autour. Taille minimale du symbole : 16 px de large.
+* Logo horizontal : icône haute de 1,42 × la hauteur des capitales, espace icône–texte = 30 % de l’icône.
+* Zone de protection : la moitié de la hauteur de l’icône tout autour. Taille minimale : icône 16 px, logo
+  horizontal 20 px de haut.
 
 ## Régénérer
 

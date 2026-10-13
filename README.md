@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="Resources/Brand/Logo-White.svg">
-    <img src="Resources/Brand/Logo-Black.svg" alt="Espazio" height="64">
+    <source media="(prefers-color-scheme: dark)" srcset="Resources/Brand/Logo-Horizontal-White.svg">
+    <img src="Resources/Brand/Logo-Horizontal.svg" alt="Espazio" height="64">
   </picture>
 </p>
 

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Generates the Espazio brand assets (Resources/Brand/*.svg).
 
-The mark reuses the exact silhouette of `NotchShape` (Sources/EspazioUI/NotchShape.swift):
-outward top curves merging into the screen edge, rounded bottom corners. Inside, the
-"peek" state: an icon on the left, a monochrome progress bar on the right
-(EZProgressBar: track white 18 %, fill white). Monochrome only (docs/DESIGN_SYSTEM.md).
+The icon stacks three copies of the exact `NotchShape` silhouette
+(Sources/EspazioUI/NotchShape.swift): outward top curves, rounded bottom corners — the notch
+opening up. Monochrome only (docs/DESIGN_SYSTEM.md).
 
 The wordmark is outlined from Inter Display SemiBold (SIL OFL), the closest open
 equivalent of SF Pro Display, so the SVGs do not depend on installed fonts.
@@ -47,17 +46,6 @@ def notch_path(x, y, w, h, top, bottom):
     ])
 
 
-def capsule(x, y, w, h):
-    r = h / 2
-    return (f"M{f(x + r)} {f(y)} H{f(x + w - r)} A{f(r)} {f(r)} 0 0 1 {f(x + w - r)} {f(y + h)} "
-            f"H{f(x + r)} A{f(r)} {f(r)} 0 0 1 {f(x + r)} {f(y)} Z")
-
-
-def circle(cx, cy, r):
-    return (f"M{f(cx - r)} {f(cy)} A{f(r)} {f(r)} 0 1 0 {f(cx + r)} {f(cy)} "
-            f"A{f(r)} {f(r)} 0 1 0 {f(cx - r)} {f(cy)} Z")
-
-
 def continuous_rect(x, y, w, h, r):
     """Rounded rectangle with continuous (squircle) corners, as SwiftUI `.continuous`."""
     k = [1.52866483, 1.08849299, 0.86840701, 0.63149399, 0.07491100, 0.37282401, 0.16905500, 0.02222201]
@@ -82,18 +70,6 @@ def continuous_rect(x, y, w, h, r):
     return " ".join(p)
 
 
-def peek(x, y, w, h, top, scale):
-    """Peek content inside a notch: icon (dot) left, progress bar right."""
-    inner_l, inner_r = x + top, x + w - top
-    cy = y + h * 0.54
-    dot = circle(inner_l + 64 * scale, cy, 26 * scale)
-    bar_w, bar_h = 132 * scale, 22 * scale
-    bar_x = inner_r - 64 * scale - bar_w
-    track = capsule(bar_x, cy - bar_h / 2, bar_w, bar_h)
-    fill = capsule(bar_x, cy - bar_h / 2, bar_w * 0.62, bar_h)
-    return dot, track, fill
-
-
 def svg(w, h, body, title):
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {f(w)} {f(h)}" '
             f'width="{f(w)}" height="{f(h)}" role="img" aria-label="{title}">\n'
@@ -104,10 +80,8 @@ def svg(w, h, body, title):
 ICON_BANDS = [(760, 560, 40, 170), (560, 390, 36, 130), (340, 230, 30, 90)]
 
 
-def app_icon(dark):
-    """Three nested NotchShape silhouettes hanging from the top edge: the notch opening up
-    (collapsed → peek → expanded). Flat greys only. macOS grid: 1024 canvas, 824 body,
-    continuous corner ≈ 185."""
+def icon_layers(dark, uid="body"):
+    """Defs and body of the app icon in the 1024 grid (body 100..924)."""
     bx, by, bs, br = 100, 100, 824, 185.4
     body_path = continuous_rect(bx, by, bs, bs, br)
     if dark:
@@ -117,36 +91,40 @@ def app_icon(dark):
     bands = "".join(
         f'  <path d="{notch_path(512 - w / 2, by, w, h, t, b)}" fill="{c}"/>\n'
         for (w, h, t, b), c in zip(ICON_BANDS, colors))
-    return svg(1024, 1024, (
-        f'<defs><clipPath id="body"><path d="{body_path}"/></clipPath></defs>\n'
-        f'<path d="{body_path}" fill="{bg}"/>\n'
-        f'<g clip-path="url(#body)">\n{bands}</g>\n'
-        f'<path d="{body_path}" fill="none" stroke="{stroke}" stroke-opacity="0.10" stroke-width="2"/>\n'
+    defs = f'<clipPath id="{uid}"><path d="{body_path}"/></clipPath>'
+    body = (f'<path d="{body_path}" fill="{bg}"/>\n'
+            f'<g clip-path="url(#{uid})">\n{bands}</g>\n'
+            f'<path d="{body_path}" fill="none" stroke="{stroke}" stroke-opacity="0.10" stroke-width="2"/>\n')
+    return defs, body
+
+
+def app_icon(dark):
+    """Three nested NotchShape silhouettes hanging from the top edge: the notch opening up
+    (collapsed → peek → expanded). Flat greys only. macOS grid: 1024 canvas, 824 body,
+    continuous corner ≈ 185."""
+    defs, body = icon_layers(dark)
+    return svg(1024, 1024, f"<defs>{defs}</defs>\n{body}", "Espazio")
+
+
+def horizontal_logo(on_dark):
+    """App icon tile + "Espazio". Dark icon and black text for light backgrounds; light
+    icon and white text for dark backgrounds (the dark tile would vanish on black)."""
+    size = 120                      # font size
+    cap = 0.73 * size               # Inter Display cap height
+    tile = 1.42 * cap               # icon body height
+    k = tile / 824
+    gap = 0.30 * tile
+    pad = 2
+    baseline = pad + tile / 2 + cap / 2
+    text, tw = wordmark_path("Espazio", pad + tile + gap, baseline, size)
+    W, H = pad + tile + gap + tw + pad, tile + 2 * pad
+    defs, body = icon_layers(dark=not on_dark, uid="tile")
+    color = "#FFFFFF" if on_dark else BLACK
+    return svg(W, H, (
+        f"<defs>{defs}</defs>\n"
+        f'<g transform="translate({f(pad - 100 * k)} {f(pad - 100 * k)}) scale({k:.6f})">\n{body}</g>\n'
+        f'<path d="{text}" fill="{color}"/>\n'
     ), "Espazio")
-
-
-def mark_shapes(ox, oy, s):
-    """Standalone symbol: screen edge (capsule) + notch hanging from it, peek punched out.
-    Returns (solid path, cut-out path) in a 512×232 box scaled by s."""
-    edge_h = 28 * s
-    edge = capsule(ox, oy, 512 * s, edge_h)
-    nw, nh, nt, nb = 352 * s, 196 * s, 22 * s, 64 * s
-    nx = ox + (512 * s - nw) / 2
-    ny = oy + edge_h / 2
-    notch = notch_path(nx, ny, nw, nh, nt, nb)
-    dot, track, fill = peek(nx, ny, nw, nh, nt, 0.82 * s)
-    return [edge, notch], dot, track, fill
-
-
-def mark(color, title="Espazio"):
-    solid, dot, track, fill = mark_shapes(0, 0, 1)
-    return svg(512, 224, (
-        f'<defs><mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="224">'
-        f'<rect width="512" height="224" fill="#fff"/>'
-        f'<path d="{dot}" fill="#000"/><path d="{track}" fill="#000" fill-opacity="0.18"/>'
-        f'<path d="{fill}" fill="#000"/></mask></defs>\n'
-        f'<g fill="{color}" mask="url(#cut)"><path d="{solid[0]}"/><path d="{solid[1]}"/></g>\n'
-    ), title)
 
 
 def wordmark_path(text, x, baseline, size):
@@ -166,28 +144,6 @@ def wordmark_path(text, x, baseline, size):
     return pen.getCommands(), (cursor - tracking) * sc
 
 
-def lockup(color):
-    size = 132
-    text, tw = wordmark_path("Espazio", 0, 0, size)
-    ms = 0.42  # mark scale → 215×94
-    mw, mh = 512 * ms, 224 * ms
-    gap = 44
-    cap = 0.73 * size  # cap height ≈ 0.73 em for Inter Display
-    baseline = 30 + cap
-    text, _ = wordmark_path("Espazio", mw + gap, baseline, size)
-    my = baseline - cap / 2 - (28 * ms + 196 * ms) / 2 + 2
-    solid, dot, track, fill = mark_shapes(0, my, ms)
-    W, H = mw + gap + tw + 2, baseline + 40
-    return svg(W, H, (
-        f'<defs><mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="{f(W)}" height="{f(H)}">'
-        f'<rect width="{f(W)}" height="{f(H)}" fill="#fff"/>'
-        f'<path d="{dot}" fill="#000"/><path d="{track}" fill="#000" fill-opacity="0.18"/>'
-        f'<path d="{fill}" fill="#000"/></mask></defs>\n'
-        f'<g fill="{color}" mask="url(#cut)"><path d="{solid[0]}"/><path d="{solid[1]}"/></g>\n'
-        f'<path d="{text}" fill="{color}"/>\n'
-    ), "Espazio")
-
-
 def main():
     if not os.path.exists(FONT):
         sys.exit(f"Police introuvable : {FONT} (définir ESPAZIO_FONT)")
@@ -195,10 +151,8 @@ def main():
     files = {
         "AppIcon.svg": app_icon(dark=True),
         "AppIcon-Light.svg": app_icon(dark=False),
-        "Mark-Black.svg": mark(BLACK),
-        "Mark-White.svg": mark("#FFFFFF"),
-        "Logo-Black.svg": lockup(BLACK),
-        "Logo-White.svg": lockup("#FFFFFF"),
+        "Logo-Horizontal.svg": horizontal_logo(on_dark=False),
+        "Logo-Horizontal-White.svg": horizontal_logo(on_dark=True),
     }
     for name, content in files.items():
         with open(os.path.join(OUT, name), "w", encoding="utf-8") as fh:
