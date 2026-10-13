@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>fr</string>
+	<key>CFBundleDisplayName</key>
+	<string>Espazio</string>
+	<key>CFBundleExecutable</key>
+	<string>Espazio</string>
+	<key>CFBundleIdentifier</key>
+	<string>app.espazio.Espazio</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Espazio</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticTermination</key>
+	<false/>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Espazio affiche vos prochains rendez-vous et leur lien de réunion dans la notch.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Espazio affiche vos prochains rendez-vous et leur lien de réunion dans la notch.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Espazio affiche vos rappels du jour et en retard, et permet d’en créer ou d’en terminer.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Espazio affiche vos rappels du jour et en retard, et permet d’en créer ou d’en terminer.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Espazio pilote la lecture de Spotify (lecture, pause, piste suivante) à votre demande.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Espazio signale la connexion et la déconnexion de vos périphériques Bluetooth (option désactivée par défaut).</string>
+</dict>
+</plist>
