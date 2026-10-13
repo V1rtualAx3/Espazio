@@ -1,102 +1,194 @@
-# Espazio
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Resources/Brand/Logo-White.svg">
+    <img src="Resources/Brand/Logo-Black.svg" alt="Espazio" height="64">
+  </picture>
+</p>
 
-Utilitaire de notch pour macOS : discret au repos, contextuel quand il le faut, décisif pour vos agents IA.
-SwiftUI + AppKit natifs, monochrome, local-first, sans Electron ni WebView.
+<p align="center">
+  <strong>La notch de votre Mac, enfin utile.</strong><br>
+  Discrète au repos, contextuelle quand il le faut, décisive pour vos agents IA.
+</p>
 
-> **Statut : V1 « non vérifiée sur Mac ».** Le code a été écrit et testé dans un environnement Linux
-> (logique) et compilé/testé par la CI GitHub Actions macOS. L’interface n’a pas encore été lancée sur un
-> Mac réel : suivez [la checklist manuelle](docs/MANUAL_TEST_CHECKLIST.md).
+<p align="center">
+  <a href="https://github.com/V1rtualAx3/Espazio/actions/workflows/ci.yml"><img src="https://github.com/V1rtualAx3/Espazio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white" alt="macOS 14+">
+  <img src="https://img.shields.io/badge/Swift-6-000000?logo=swift&logoColor=white" alt="Swift 6">
+  <img src="https://img.shields.io/badge/Apple%20Silicon-M1%E2%80%93M5-000000" alt="Apple Silicon">
+</p>
+
+---
+
+Espazio transforme la découpe de l’écran des MacBook en un espace d’information natif : musique, prochaine
+réunion, rappels, e-mails et — surtout — **les demandes d’autorisation de Claude Code et Codex**, que vous
+acceptez ou refusez d’un clic sans quitter ce que vous faites.
+
+100 % SwiftUI + AppKit · monochrome · local-first · aucune télémétrie · ni Electron ni WebView.
+
+## Sommaire
+
+- [Fonctionnalités](#fonctionnalités)
+- [Installation](#installation)
+- [Premiers pas](#premiers-pas)
+- [Confidentialité et sécurité](#confidentialité-et-sécurité)
+- [Développement](#développement)
+- [Documentation](#documentation)
+- [État du projet](#état-du-projet)
 
 ## Fonctionnalités
 
-| Domaine | Fonction | Statut |
+### Une notch à trois états
+
+| État | Quand | Ce que vous voyez |
 |---|---|---|
-| Notch | États repliée / aperçu / déployée, survol, clic, raccourci, Échap | Opérationnelle* |
-| Notch | Notch virtuelle sur écran externe, écran principal ou tous les écrans | Opérationnelle* |
-| Notch | Écran « actif » (écran sous le pointeur) | Partielle — approximation sans permission Accessibilité |
-| Notch | Masquage en plein écran | Partielle — détection heuristique (fenêtre couvrant l’écran) |
-| Système | Volume, sortie audio (CoreAudio) | Opérationnelle* (le HUD système reste affiché) |
-| Système | Batterie, alimentation (IOKit) | Opérationnelle* |
-| Système | Verr. Maj | Partielle — global peut nécessiter Accessibilité |
-| Système | Verr. Num | Indisponible — non exposé par les claviers Mac (affiché tel quel) |
-| Système | Bluetooth (option) | Opérationnelle* |
-| Médias | Spotify : titre, artiste, pochette, contrôles, progression | Opérationnelle* (notifications + AppleScript) |
-| Médias | Autres lecteurs, MediaRemote privé | Indisponible (volontairement) |
-| Apple | Calendrier : prochain événement, compte à rebours, lien de réunion, ouverture | Opérationnelle* |
-| Apple | Rappels : du jour / en retard, création, accomplissement | Opérationnelle* |
-| IA | Claude Code : sessions, état, autorisations « Refuser / Autoriser une fois » | Opérationnelle* (hooks documentés) |
-| IA | Claude Code : questions (`AskUserQuestion`) | Indisponible — laissées à Claude Code |
-| IA | Codex : sessions lancées depuis Espazio (app-server), approbations, questions | Opérationnelle* (questions : API expérimentale) |
-| IA | Codex CLI indépendant | Partielle — lecture seule via `notify` (fin de tour) |
-| IA | ChatGPT Desktop | Expérimentale — ouvert/fermé + ouverture |
-| Google | Gmail : non-lus, aperçu, ouverture, marquer lu, archiver | Opérationnelle* |
-| Google | Google Chat : espaces, messages, réponse | Partielle — comptes Workspace avec app Chat configurée |
-| Google | Google Agenda direct + dédoublonnage EventKit | Opérationnelle* |
-| Focus | Modes Normal / Concentré / Silencieux, réunion & plein écran | Opérationnelle* |
-| Notch | Affichage continu au repos (média, compte à rebours de réunion, agents, non-lus), au choix | Opérationnelle* |
-| Focus | Synchronisation avec les modes Concentration macOS | Indisponible — pas d’API publique adaptée |
-| Actions rapides | Palette ⌃⌥Espace, recherche locale, « + rappel demain 9h » | Opérationnelle* |
-| Diagnostic | Mémoire, CPU, compteurs (à la demande) | Opérationnelle* |
+| **Repliée** | au repos | rien — ou une seule information continue de votre choix |
+| **Aperçu** | un événement survient | une icône et une valeur de part et d’autre de la caméra |
+| **Déployée** | survol, clic ou <kbd>⌃</kbd><kbd>⌥</kbd><kbd>N</kbd> | lecture, agenda, rappels, agents IA, Gmail, Chat |
 
-\* Compilée et couverte par des tests automatisés ; comportement réel à confirmer avec la checklist manuelle.
+Notch virtuelle sur les écrans externes, écran principal ou tous les écrans, masquage optionnel en plein écran.
 
-## Tester en local (DMG / PKG)
+### Affichage continu
 
-Chaque exécution de la CI publie l’artefact **Espazio-installers** (onglet *Actions* › exécution › *Artifacts*),
-qui contient `Espazio-<version>.dmg` et `Espazio-<version>.pkg`. Pour les produire soi-même sur un Mac :
-`scripts/package.sh` → `build/`.
+Choisissez ce que la notch garde à l’écran au repos : morceau en cours (même en pause), compte à rebours de
+la prochaine réunion, agents IA actifs, e-mails non lus. Une seule information à la fois, par priorité.
 
-Ces builds sont **signés ad hoc, non notarisés** : macOS les bloque au premier lancement.
+### Centre d’activité IA
 
-* **DMG** : ouvrir, glisser *Espazio* dans *Applications*, puis clic droit sur l’app › **Ouvrir** › Ouvrir.
-  Si macOS refuse : Réglages Système › Confidentialité et sécurité › **Ouvrir quand même**, ou
-  `xattr -dr com.apple.quarantine /Applications/Espazio.app`.
-* **PKG** : clic droit › **Ouvrir** (ou *Ouvrir quand même* dans Confidentialité et sécurité), puis suivre
-  l’installeur ; l’app est installée dans `/Applications`.
+- **Claude Code** — via les hooks officiels : sessions, état, et demandes d’autorisation avec la commande
+  complète ou le **diff** des fichiers modifiés. Deux boutons, et seulement deux : **Refuser** ou
+  **Autoriser une fois**.
+- **Codex** — sessions lancées depuis Espazio via `codex app-server` (approbations, questions) ; sessions CLI
+  suivies en lecture seule.
+- **Refus par défaut** : sans réponse, la demande est refusée. Aucune autorisation permanente n’est jamais créée.
 
-Désinstaller : quitter Espazio (barre des menus › Quitter), retirer les hooks dans Réglages › Agents IA,
-puis supprimer `/Applications/Espazio.app` et `~/Library/Application Support/Espazio`.
+### Médias et système
 
-## Installation (depuis les sources)
+- Spotify et Musique : titre, pochette, progression, commandes — sans interrogation périodique.
+- Volume, sortie audio, batterie, alimentation, Verr. Maj, Bluetooth (option).
 
-Prérequis : macOS 14 ou plus récent, Xcode 16 ou plus récent (Swift 6).
+### Productivité
+
+- **Calendrier** : prochain événement, compte à rebours, bouton pour rejoindre Meet / Zoom / Teams.
+- **Rappels** : du jour et en retard, création et accomplissement.
+- **Gmail** : non-lus, aperçu, marquer comme lu, archiver.
+- **Google Chat** (Workspace) : conversations et réponse depuis la notch.
+- **Actions rapides** <kbd>⌃</kbd><kbd>⌥</kbd><kbd>Espace</kbd> : recherche locale, et `+ appeler Paul demain 9h`
+  pour créer un rappel.
+- **Concentration** : modes Normal, Concentré, Silencieux ; interruptions limitées en réunion ou en plein écran.
+
+## Installation
+
+### DMG ou PKG
+
+Téléchargez l’artefact **Espazio-installers** de la
+[dernière exécution de la CI](https://github.com/V1rtualAx3/Espazio/actions/workflows/ci.yml)
+(ou d’une release) :
+
+- **DMG** — ouvrez-le et glissez Espazio dans *Applications*.
+- **PKG** — installe Espazio dans `/Applications`.
+
+> [!NOTE]
+> Les builds de la CI sont signés ad hoc et non notarisés. Au premier lancement : clic droit sur l’app ›
+> **Ouvrir**, ou Réglages Système › Confidentialité et sécurité › **Ouvrir quand même**.
+
+### Depuis les sources
+
+Prérequis : macOS 14+, Xcode 16+.
 
 ```sh
-git clone https://github.com/V1rtualAx3/Espazio.git && cd Espazio
-scripts/build-app.sh            # → build/Espazio.app (signature ad hoc)
-cp -R build/Espazio.app /Applications/
-open /Applications/Espazio.app
+git clone https://github.com/V1rtualAx3/Espazio.git
+cd Espazio
+scripts/package.sh                # build/Espazio.app, .dmg et .pkg
+open build/Espazio.app
 ```
 
-Distribution signée : `CODESIGN_IDENTITY="Developer ID Application: …" INSTALLER_IDENTITY="Developer ID Installer: …" scripts/package.sh`, puis
-`xcrun notarytool submit build/Espazio.zip --keychain-profile … --wait` et
-`xcrun stapler staple build/Espazio.app`.
+### Désinstaller
+
+Quittez Espazio (barre des menus › Quitter), retirez les hooks dans Réglages › Agents IA, puis supprimez
+`/Applications/Espazio.app` et `~/Library/Application Support/Espazio`.
 
 ## Premiers pas
 
-1. Barre des menus › Espazio › Réglages.
-2. **Modules** : autoriser Calendrier et Rappels.
-3. **Agents IA** : installer les hooks Claude Code ; optionnellement le suivi Codex CLI. Détails :
-   [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
-4. **Google** : créer un client OAuth puis se connecter. Guide : [docs/GOOGLE_OAUTH.md](docs/GOOGLE_OAUTH.md).
+1. Barre des menus › icône Espazio › **Réglages…**
+2. **Général** — ouverture à la connexion, écrans, affichage continu, raccourcis, mises à jour.
+3. **Modules** — autorisez Calendrier et Rappels, choisissez vos lecteurs.
+4. **Agents IA** — installez les hooks Claude Code (une sauvegarde de votre configuration est conservée).
+   → [Guide des intégrations](docs/INTEGRATIONS.md)
+5. **Google** — créez votre client OAuth puis connectez-vous. → [Guide Google](docs/GOOGLE_OAUTH.md)
 
-Raccourcis par défaut : ⌃⌥N (notch), ⌃⌥Espace (Actions rapides).
+> [!TIP]
+> Seules les sessions Claude Code lancées **sur ce Mac** apparaissent dans Espazio. Les sessions cloud
+> (claude.ai/code) tournent sur une autre machine.
+
+## Confidentialité et sécurité
+
+- **Local-first** : seuls les services que vous connectez (Google) et les pochettes d’album sont contactés.
+- **Aucune télémétrie**, aucun analytics.
+- **Jetons dans le Trousseau**, jamais en clair ni dans les journaux.
+- **Aucun port réseau ouvert** : communication avec les agents par socket Unix réservée à votre utilisateur ;
+  écouteur `127.0.0.1` temporaire uniquement pendant la connexion Google.
+- **Décisions d’agents** : refus par défaut, résolution unique, contrôle de session, journal d’audit sans
+  contenu de commande.
+
+Détails : [docs/SECURITY.md](docs/SECURITY.md). Signaler une vulnérabilité : [SECURITY.md](SECURITY.md).
 
 ## Développement
 
 ```sh
-swift build && swift test                 # sur Mac : tout le paquet
-scripts/swift-linux.sh test               # logique multiplateforme dans Docker (swift:6.1-noble)
-open Package.swift                        # Xcode
+swift build && swift test         # macOS : paquet complet
+scripts/swift-linux.sh test       # logique multiplateforme dans Docker (swift:6.1-noble)
+open Package.swift                # Xcode
 ```
 
-Documentation : [Architecture](docs/ARCHITECTURE.md) · [Design system](docs/DESIGN_SYSTEM.md) ·
-[Sécurité](docs/SECURITY.md) · [Performance](docs/PERFORMANCE.md) ·
-[Journal de développement](docs/DEVELOPMENT_LOG.md) · [Cahier des charges](ESPAZIO_CAHIER_DES_CHARGES.md) ·
-[Règles des agents](AGENTS.md).
+```
+Sources/
+├── EspazioCore            modèles, priorités, approbations, géométrie, réglages      (multiplateforme)
+├── EspazioBridge          socket Unix locale et protocole versionné                  (multiplateforme)
+├── AgentIntegrations      hooks Claude Code, Codex app-server                        (multiplateforme)
+├── GoogleProvider         OAuth PKCE, Gmail, Chat, Agenda                            (multiplateforme)
+├── EspazioHook            exécutable espazio-hook                                    (multiplateforme)
+├── SystemServices         CoreAudio, IOKit, clavier, Bluetooth, lecteurs             (macOS)
+├── ProductivityProviders  EventKit                                                   (macOS)
+├── EspazioUI              design system et vues SwiftUI                              (macOS)
+└── Espazio                application : fenêtres, écrans, raccourcis, coordinateur   (macOS)
+```
 
-## Confidentialité
+La CI compile et teste la logique sous Linux, puis l’application complète sous macOS, et publie
+`Espazio.app`, le `.dmg` et le `.pkg`.
 
-Aucune télémétrie. Jetons dans le Trousseau. Pas de port réseau ouvert (hors écouteur 127.0.0.1 temporaire
-pendant la connexion Google). Les décisions d’agents sont refusées par défaut. Voir
-[docs/SECURITY.md](docs/SECURITY.md).
+Avant de contribuer, lisez [AGENTS.md](AGENTS.md) et le [cahier des charges](ESPAZIO_CAHIER_DES_CHARGES.md).
+
+## Documentation
+
+| Document | Contenu |
+|---|---|
+| [Architecture](docs/ARCHITECTURE.md) | cibles, flux, concurrence, choix techniques |
+| [Design system](docs/DESIGN_SYSTEM.md) | jetons, états de la notch, composants, accessibilité |
+| [Identité visuelle](docs/BRAND.md) | logo, icône, règles |
+| [Intégrations IA](docs/INTEGRATIONS.md) | Claude Code, Codex, ChatGPT |
+| [Google](docs/GOOGLE_OAUTH.md) | configuration OAuth, limites de Google Chat |
+| [Mises à jour](docs/UPDATES.md) | Sparkle, clés, appcast, notarisation |
+| [Sécurité](docs/SECURITY.md) | garanties et modèle de menace |
+| [Performance](docs/PERFORMANCE.md) | choix de conception et protocole de mesure |
+| [Checklist manuelle](docs/MANUAL_TEST_CHECKLIST.md) | validation sur Mac avant publication |
+| [Journal](docs/DEVELOPMENT_LOG.md) | décisions, défauts corrigés, tests exécutés |
+
+## État du projet
+
+**Version 0.1 — préversion.** Les premiers tests manuels sur Mac sont en cours ; les mesures de performance
+restent à réaliser.
+
+| Domaine | État |
+|---|---|
+| Notch, multi-écrans, affichage continu, raccourcis configurables | ✅ |
+| Volume, audio, batterie, Verr. Maj, Bluetooth | ✅ |
+| Spotify, Musique | ✅ |
+| Calendrier, Rappels | ✅ |
+| Claude Code (hooks, autorisations, diffs) | ✅ |
+| Codex app-server | ✅ · CLI indépendant en lecture seule |
+| Gmail · Google Agenda | ✅ |
+| Google Chat | ◐ comptes Workspace uniquement |
+| Ouverture à la connexion · mises à jour Sparkle | ✅ · Sparkle à activer avec une clé de signature |
+| Verr. Num | — non exposé par les claviers Mac |
+| Modes Concentration de macOS | — pas d’API publique : mode manuel intégré |
+| ChatGPT Desktop | ◐ état et ouverture uniquement |
