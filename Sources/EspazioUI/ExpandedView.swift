@@ -88,16 +88,23 @@ private struct TabButton: View {
 private struct FocusMenu: View {
     let mode: FocusMode
     let pending: Int
-    let onSelect: @MainActor (FocusMode) -> Void
+    let onSelect: (FocusMode) -> Void
 
     var body: some View {
         Menu {
-            Picker("Concentration", selection: Binding(get: { mode }, set: onSelect)) {
-                Text("Normal").tag(FocusMode.normal)
-                Text("Concentré (P0–P1 seulement)").tag(FocusMode.focused)
-                Text("Silencieux").tag(FocusMode.silent)
+            // Plain buttons rather than a Picker bound through `Binding(get:set:)`, which
+            // triggers a Swift 6.1 IRGen crash with an actor-isolated setter.
+            ForEach([FocusMode.normal, .focused, .silent], id: \.self) { option in
+                Button {
+                    onSelect(option)
+                } label: {
+                    if option == mode {
+                        Label(Self.title(option), systemImage: "checkmark")
+                    } else {
+                        Text(Self.title(option))
+                    }
+                }
             }
-            .pickerStyle(.inline)
         } label: {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .semibold))
@@ -109,6 +116,14 @@ private struct FocusMenu: View {
         .frame(width: 28, height: 24)
         .accessibilityLabel("Mode de concentration")
         .help("Mode de concentration")
+    }
+
+    static func title(_ mode: FocusMode) -> String {
+        switch mode {
+        case .normal: return "Normal"
+        case .focused: return "Concentré (P0–P1 seulement)"
+        case .silent: return "Silencieux"
+        }
     }
 
     private var symbol: String {
