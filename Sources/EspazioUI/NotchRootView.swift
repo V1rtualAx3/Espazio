@@ -18,7 +18,9 @@ public struct NotchRootView: View {
     public var body: some View {
         let geometry = presentation.geometry
         let notchState = presentation.state
-        let size = geometry.contentSize(for: notchState)
+        let tall = presentation.tab != .home || !state.pendingRequests.isEmpty
+        // The window always reserves the tall size; the shape adapts to the content.
+        let size = geometry.contentSize(for: notchState, tall: tall)
         let topRadius: CGFloat = notchState == .expanded ? 10 : 6
         let bottomRadius = notchState == .expanded ? geometry.metrics.cornerRadiusExpanded : geometry.metrics.cornerRadiusCollapsed
 

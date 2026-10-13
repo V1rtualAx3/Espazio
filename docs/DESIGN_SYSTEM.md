@@ -41,10 +41,19 @@ courbes supérieures vers l’extérieur, rayons animables).
 |---|---|---|
 | `collapsed` | taille exacte de la découpe (ou notch virtuelle 190×menu bar) | rien |
 | `peek` | découpe + 2 ailes de 96 pt | icône à gauche, une valeur à droite (barre de volume, titre court, ondes Spotify) |
-| `expanded` | 640×(240 + hauteur de notch), borné à l’écran | onglets (Accueil, Agents IA, Gmail, Chat), mode concentration, réglages |
+| `expanded` | 600 × (150 + notch) sur l’accueil, 600 × (230 + notch) pour Agents IA / Gmail / Chat ou une décision en attente ; la fenêtre réserve toujours la grande taille | onglets (Accueil, Agents IA, Gmail, Chat), mode concentration, réglages |
 
 Transitions : ressort 0,38 s ; avec **Réduire les animations**, fondu 0,12 s. La fenêtre grandit avant
 l’animation et ne rétrécit qu’après (0,40 s), sans animer le cadre de la fenêtre.
+
+## Accueil (style « Dynamic Island »)
+
+* Pas de cartes encadrées : deux sections (lecture / agenda) séparées par l’espace et un filet de 0,5 pt.
+* Lecture : pochette 64 pt (rayon 12), titre 15 pt semibold, artiste 12,5 pt, barre de 3 pt avec temps
+  écoulé et restant, commandes sans fond qui grossissent légèrement au survol.
+* Agenda : heure en 20 pt chiffres tabulaires, titre 13 pt, compte à rebours discret, bouton rond vidéo
+  pour rejoindre ; 2 rappels max puis « + N autres ».
+* États vides et permissions : une seule ligne discrète (`QuietLine`), jamais un grand bloc vide.
 
 ## Composants
 

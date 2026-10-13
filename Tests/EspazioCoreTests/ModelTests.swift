@@ -68,6 +68,14 @@ final class ModelTests: XCTestCase {
         XCTAssertNil(unknown.progress(at: t))
     }
 
+    func testPositionNormalization() {
+        XCTAssertEqual(NowPlaying.normalizedPosition(42, duration: 292), 42)
+        XCTAssertEqual(NowPlaying.normalizedPosition(130_500, duration: 292), 130.5, "milliseconds converted")
+        XCTAssertNil(NowPlaying.normalizedPosition(9_999_999, duration: 292))
+        XCTAssertNil(NowPlaying.normalizedPosition(-1, duration: 292))
+        XCTAssertEqual(NowPlaying.normalizedPosition(10, duration: nil), 10)
+    }
+
     func testSystemEventMapping() {
         let now = Date()
         let volume = SystemEventMapper.activity(for: .volume(level: 0.5, muted: false, device: "MacBook"), now: now)

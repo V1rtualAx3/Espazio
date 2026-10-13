@@ -36,6 +36,16 @@ public struct NowPlaying: Sendable, Equatable, Codable {
         self.positionDate = positionDate
     }
 
+    /// Players report the position in seconds, but some versions / scripting paths return
+    /// milliseconds; a value still past the end is dropped rather than shown as finished.
+    public static func normalizedPosition(_ raw: Double?, duration: Double?) -> Double? {
+        guard let raw, raw >= 0 else { return nil }
+        guard let duration, duration > 0 else { return raw }
+        if raw <= duration + 1 { return raw }
+        let seconds = raw / 1000
+        return seconds <= duration + 1 ? seconds : nil
+    }
+
     public func position(at date: Date) -> TimeInterval? {
         guard let position else { return nil }
         var value = position

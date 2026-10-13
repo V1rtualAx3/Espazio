@@ -94,11 +94,11 @@ public final class SpotifyProvider {
             update(nil)
             return
         }
-        let durationMS = info["Duration"].flatMap(Double.init)
-        let position = info["Playback Position"].flatMap(Double.init)
+        let duration = info["Duration"].flatMap(Double.init).map { $0 / 1000 }
+        let position = NowPlaying.normalizedPosition(info["Playback Position"].flatMap(Double.init), duration: duration)
         let playing = NowPlaying(
             trackID: trackID, title: title, artist: info["Artist"] ?? "", album: info["Album"], state: state,
-            duration: durationMS.map { $0 / 1000 }, position: position, positionDate: Date())
+            duration: duration, position: position, positionDate: Date())
         update(playing)
     }
 

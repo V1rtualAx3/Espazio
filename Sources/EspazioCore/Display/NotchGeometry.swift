@@ -56,7 +56,9 @@ public struct NotchMetrics: Sendable, Equatable {
     public var peekWingWidth: CGFloat = 96
     /// Extra height below the notch for a peek subtitle line.
     public var peekExtraHeight: CGFloat = 0
-    public var expandedSize = CGSize(width: 640, height: 240)
+    /// Compact expanded height (home) and tall height (agents, mail, chat, pending decisions).
+    public var expandedSize = CGSize(width: 600, height: 150)
+    public var expandedTallHeight: CGFloat = 230
     public var cornerRadiusCollapsed: CGFloat = 10
     public var cornerRadiusExpanded: CGFloat = 26
 
@@ -95,8 +97,8 @@ public struct NotchGeometry: Sendable, Equatable {
         }
     }
 
-    /// Size of the visible shape for a state.
-    public func contentSize(for state: NotchState) -> CGSize {
+    /// Size of the visible shape for a state. `tall` selects the taller expanded variant.
+    public func contentSize(for state: NotchState, tall: Bool = true) -> CGSize {
         switch state {
         case .collapsed:
             return notchRect.size
@@ -106,7 +108,8 @@ public struct NotchGeometry: Sendable, Equatable {
                 height: notchRect.height + metrics.peekExtraHeight)
         case .expanded:
             let width = min(max(metrics.expandedSize.width, notchRect.width + 2 * metrics.peekWingWidth), screenFrame.width - 16)
-            let height = min(metrics.expandedSize.height + notchRect.height, screenFrame.height / 2)
+            let base = tall ? metrics.expandedTallHeight : metrics.expandedSize.height
+            let height = min(base + notchRect.height, screenFrame.height / 2)
             return CGSize(width: width, height: height)
         }
     }

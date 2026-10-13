@@ -34,6 +34,13 @@ Installation manuelle équivalente :
 }
 ```
 
+### Quelles sessions apparaissent ?
+
+Uniquement les sessions Claude Code **exécutées sur ce Mac** (terminal, VS Code…) avec les hooks
+installés dans le `~/.claude/settings.json` de ce Mac. Les sessions Claude Code sur le web / dans le cloud
+(claude.ai/code) tournent sur une autre machine : elles ne peuvent pas joindre la socket locale d’Espazio
+et n’apparaissent donc pas.
+
 ### Comportement
 
 * Sortie de décision : `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}`
