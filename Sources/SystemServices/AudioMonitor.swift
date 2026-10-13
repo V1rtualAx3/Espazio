@@ -9,6 +9,7 @@ import Foundation
 public final class AudioMonitor {
     public var onEvent: ((SystemEvent) -> Void)?
 
+    private static let unknownDevice = AudioObjectID(kAudioObjectUnknown)
     private var deviceID = AudioObjectID(kAudioObjectUnknown)
     private var deviceName: String?
     private var lastVolume: Double?
@@ -51,7 +52,7 @@ public final class AudioMonitor {
     }
 
     private func bind(to device: AudioObjectID, announce: Bool) {
-        guard device != kAudioObjectUnknown, device != deviceID else { return }
+        guard device != Self.unknownDevice, device != deviceID else { return }
         unbindDevice()
         deviceID = device
         let name = Self.name(of: device)
@@ -76,7 +77,7 @@ public final class AudioMonitor {
     }
 
     private func unbindDevice() {
-        guard deviceID != kAudioObjectUnknown, let listener = volumeListener else { return }
+        guard deviceID != Self.unknownDevice, let listener = volumeListener else { return }
         for selector in [kAudioHardwareServiceDeviceProperty_VirtualMainVolume, kAudioDevicePropertyMute] {
             var address = Self.address(selector, scope: kAudioDevicePropertyScopeOutput)
             if AudioObjectHasProperty(deviceID, &address) {
@@ -84,7 +85,7 @@ public final class AudioMonitor {
             }
         }
         volumeListener = nil
-        deviceID = AudioObjectID(kAudioObjectUnknown)
+        deviceID = Self.unknownDevice
     }
 
     private func volumeChanged() {

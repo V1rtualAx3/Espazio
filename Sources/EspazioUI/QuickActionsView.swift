@@ -55,6 +55,15 @@ public struct QuickActionsView: View {
                     .font(.system(size: 17))
                     .focused($focused)
                     .onSubmit(executeSelection)
+                    .onKeyPress(.downArrow) {
+                        model.move(1)
+                        return .handled
+                    }
+                    .onKeyPress(.upArrow) {
+                        model.move(-1)
+                        return .handled
+                    }
+                    .onExitCommand(perform: onClose)
             }
             .padding(.horizontal, 16)
             .frame(height: 50)
@@ -84,9 +93,6 @@ public struct QuickActionsView: View {
         .frame(width: 560)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
-        .onKeyPress(.downArrow) { model.move(1); return .handled }
-        .onKeyPress(.upArrow) { model.move(-1); return .handled }
-        .onKeyPress(.escape) { onClose(); return .handled }
         .onAppear { focused = true }
     }
 

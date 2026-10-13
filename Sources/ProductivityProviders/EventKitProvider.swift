@@ -32,7 +32,7 @@ public final class EventKitProvider {
         case .notDetermined: return .notDetermined
         case .restricted: return .restricted
         case .denied, .writeOnly: return .denied
-        @unknown default: return .denied
+        default: return .denied
         }
     }
 
@@ -125,7 +125,9 @@ public final class EventKitProvider {
         let calendar = Calendar.current
         let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date()))
         let predicate = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: endOfToday, calendars: nil)
-        store.fetchReminders(matching: predicate) { [weak self] reminders in
+        // Explicitly @Sendable: EventKit calls this on its own queue (a closure inferred as
+        // main-actor isolated would trap at runtime).
+        store.fetchReminders(matching: predicate) { @Sendable [weak self] reminders in
             // Map on the EventKit queue: only Sendable values cross to the main actor.
             let items: [ReminderItem] = (reminders ?? []).prefix(100).map { reminder in
                 let components = reminder.dueDateComponents

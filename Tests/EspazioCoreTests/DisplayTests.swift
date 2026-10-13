@@ -1,4 +1,7 @@
 import EspazioCore
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 import XCTest
 
 final class DisplayTests: XCTestCase {

@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 
 /// Which displays host a notch (spec §3.1).
 public enum DisplayMode: String, Sendable, Codable, CaseIterable {

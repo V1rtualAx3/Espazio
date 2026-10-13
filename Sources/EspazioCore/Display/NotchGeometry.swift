@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 
 /// Visual state of a notch (spec §2).
 public enum NotchState: String, Sendable, Equatable, CaseIterable {

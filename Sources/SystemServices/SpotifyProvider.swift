@@ -9,7 +9,7 @@ import ImageIO
 /// No private MediaRemote API is used.
 @MainActor
 public final class SpotifyProvider {
-    public static let bundleID = "com.spotify.client"
+    public nonisolated static let bundleID = "com.spotify.client"
 
     public var onChange: ((NowPlaying?) -> Void)?
     public var onArtwork: ((NSImage?) -> Void)?
@@ -70,7 +70,7 @@ public final class SpotifyProvider {
 
     // MARK: - Private
 
-    private static func sendableInfo(_ info: [AnyHashable: Any]) -> [String: String] {
+    private nonisolated static func sendableInfo(_ info: [AnyHashable: Any]) -> [String: String] {
         var result: [String: String] = [:]
         for (key, value) in info {
             guard let key = key as? String else { continue }

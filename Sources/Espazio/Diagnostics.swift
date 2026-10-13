@@ -14,16 +14,16 @@ enum Diagnostics {
             bridgeRunning: bridgeRunning, codexProcessRunning: codexRunning)
     }
 
+    /// `ri_phys_footprint` from `proc_pid_rusage` (same value as Activity Monitor's "Memory").
     static func footprintMB() -> Double {
-        var info = task_vm_info_data_t()
-        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
-        let result = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+        var info = rusage_info_v4()
+        let result = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
+                proc_pid_rusage(getpid(), RUSAGE_INFO_V4, $0)
             }
         }
-        guard result == KERN_SUCCESS else { return 0 }
-        return Double(info.phys_footprint) / 1_048_576
+        guard result == 0 else { return 0 }
+        return Double(info.ri_phys_footprint) / 1_048_576
     }
 
     static func cpuSeconds() -> Double {

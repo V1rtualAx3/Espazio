@@ -41,7 +41,7 @@ public final class PowerMonitor {
 
     static func readStatus() -> PowerStatus? {
         guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue() else { return nil }
-        let providing = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() as String?
+        let providing = IOPSGetProvidingPowerSourceType(info).map { $0.takeUnretainedValue() as String }
         let onAC = providing == "AC Power"
         guard let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else {
             return PowerStatus(level: 1, isCharging: false, isOnExternalPower: onAC, hasBattery: false)

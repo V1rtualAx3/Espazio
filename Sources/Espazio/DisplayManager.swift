@@ -147,7 +147,7 @@ enum FullScreenDetector {
             guard (window[kCGWindowLayer as String] as? Int) == 0,
                 (window[kCGWindowOwnerPID as String] as? Int32) != ownPID,
                 let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
-                let bounds = CGRect(dictionaryRepresentation: boundsDict)
+                let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary)
             else { continue }
             // CG coordinates are top-left based; convert to AppKit global coordinates.
             let appKitRect = CGRect(x: bounds.minX, y: primaryHeight - bounds.maxY, width: bounds.width, height: bounds.height)
