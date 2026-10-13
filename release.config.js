@@ -46,6 +46,8 @@ module.exports = {
     ...(isMain ? [["@semantic-release/changelog", { changelogFile: "CHANGELOG.md", changelogTitle: "# Changelog" }]] : []),
     ["@semantic-release/exec", {
       prepareCmd: "scripts/release-build.sh ${nextRelease.version}",
+      // Stable releases only: DMG and PKG also published to GitHub Packages (ghcr.io).
+      ...(isMain ? { publishCmd: "scripts/publish-package.sh ${nextRelease.version}" } : {}),
       // Betas are superseded by the stable release; on work branches, only drop the legacy
       // branch-named pre-releases.
       successCmd: isMain ? "scripts/cleanup-prereleases.sh --all" : "scripts/cleanup-prereleases.sh --legacy",

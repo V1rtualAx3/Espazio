@@ -9,6 +9,11 @@ configuration `release.config.js`), après le succès des jobs Linux et macOS, s
 | `main` | release stable, tag `vX.Y.Z` | `v1.2.0` |
 | `claude/*`, `feature/*`, `feat/*`, `fix/*` | pré-version bêta (release GitHub marquée *Pre-release*), incrémentée jusqu’à la release suivante | `v1.3.0-beta.1`, `v1.3.0-beta.2` |
 
+Sur `main` uniquement, les releases sont aussi publiées dans **GitHub Packages** (onglet *Packages* du dépôt)
+sous forme d’artefact OCI `ghcr.io/v1rtualax3/espazio:<version>` (+ `latest`) contenant le DMG et le PKG
+(`scripts/publish-package.sh`, outil [oras](https://oras.land)). Téléchargement :
+`oras pull ghcr.io/v1rtualax3/espazio:latest`.
+
 Sur `main` uniquement : `CHANGELOG.md` est mis à jour et committé (`chore(release): X.Y.Z [skip ci]`), puis
 les pré-versions bêta (releases et tags) sont supprimées, la version stable les remplaçant. Les branches de
 travail ne committent jamais de changelog : les notes de chaque bêta sont dans sa release GitHub.
