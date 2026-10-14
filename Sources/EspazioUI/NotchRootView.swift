@@ -195,6 +195,7 @@ struct UnreadCounter: Equatable {
     let key: String
 
     /// E-mail first, then Chat; only enabled, non-zero counters.
+    @MainActor
     static func all(in state: EspazioState) -> [UnreadCounter] {
         let live = state.settings.live
         let modules = state.settings.modules
