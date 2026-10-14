@@ -28,7 +28,7 @@ Tout se passe sur ce Mac ; aucun serveur Espazio n’existe.
 |---|---|
 | `gmail.readonly` | connexion Gmail |
 | `gmail.modify` | au premier « Marquer comme lu » / « Archiver » |
-| `chat.spaces.readonly`, `chat.messages.readonly`, `chat.users.readstate.readonly`, `directory.readonly` | connexion Google Chat : conversations non lues et nom des expéditeurs |
+| `chat.spaces.readonly`, `chat.messages.readonly`, `chat.users.readstate.readonly`, `chat.users.spacesettings`, `directory.readonly` | connexion Google Chat : conversations non lues, réglages de notification (lus seulement ; Google ne propose pas de variante en lecture seule) et nom des expéditeurs |
 | `calendar.events.readonly` | option « Google Agenda direct » |
 
 ## 3. Client OAuth
@@ -60,6 +60,10 @@ Espazio n’affiche que les **conversations non lues**, comme pour Gmail : une c
 quand sa dernière activité est plus récente que votre état de lecture Google Chat. Cet état est mis à
 jour par tous les clients Chat, et par vos propres messages : ce que vous envoyez ne déclenche jamais de
 notification. Un clic ouvre la conversation dans Google Chat ; on lit et on répond là-bas.
+
+Vos réglages de notification Google Chat sont respectés : une conversation **en sourdine** ou aux
+notifications **désactivées** est ignorée ; « **Pour vous** » apparaît dans la liste et le badge, sans
+aperçu dans la notch (Espazio ne distingue pas les mentions).
 
 L’API Chat ne renvoie pas le nom des expéditeurs en authentification utilisateur : Espazio le demande à
 la People API (annuaire de votre organisation). Si elle n’est pas activée, les messages apparaissent

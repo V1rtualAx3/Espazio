@@ -13,12 +13,17 @@ public enum GoogleScope {
     public static let chatMessagesCreate = "https://www.googleapis.com/auth/chat.messages.create"
     /// Per-space read state: tells which conversations are unread, as in the Chat app.
     public static let chatReadStateReadonly = "https://www.googleapis.com/auth/chat.users.readstate.readonly"
+    /// Per-space notification settings (muted conversations are ignored). Google offers no
+    /// read-only variant; Espazio only reads them.
+    public static let chatSpaceSettings = "https://www.googleapis.com/auth/chat.users.spacesettings"
     /// Names of the people in the organization (the Chat API returns user IDs only).
     public static let directoryReadonly = "https://www.googleapis.com/auth/directory.readonly"
     public static let calendarEventsReadonly = "https://www.googleapis.com/auth/calendar.events.readonly"
 
     public static let gmailRead: Set<String> = [gmailReadonly]
-    public static let chatRead: Set<String> = [chatSpacesReadonly, chatMessagesReadonly, chatReadStateReadonly, directoryReadonly]
+    public static let chatRead: Set<String> = [
+        chatSpacesReadonly, chatMessagesReadonly, chatReadStateReadonly, chatSpaceSettings, directoryReadonly,
+    ]
 }
 
 public struct OAuthTokens: Codable, Sendable, Equatable {

@@ -40,6 +40,43 @@ public struct GoogleChatService: Sendable {
         return Self.parseMessages(json, spaceID: spaceID).reversed()
     }
 
+    /// The user's notification preference for a space, as set in Google Chat.
+    public struct NotificationSetting: Sendable, Equatable {
+        public enum Level: String, Sendable {
+            case all = "ALL"
+            case mainConversations = "MAIN_CONVERSATIONS"
+            case forYou = "FOR_YOU"
+            case off = "OFF"
+            case unknown
+        }
+
+        public var muted: Bool
+        public var level: Level
+
+        public init(muted: Bool, level: Level) {
+            self.muted = muted
+            self.level = level
+        }
+
+        public static let `default` = NotificationSetting(muted: false, level: .unknown)
+        /// Muted or notifications off: Espazio ignores the conversation.
+        public var isSilenced: Bool { muted || level == .off }
+        /// "For you" only: listed, but no pop-up (mentions cannot be told apart reliably).
+        public var notifies: Bool { !isSilenced && level != .forYou }
+    }
+
+    /// Requires `chat.users.spacesettings`.
+    public func notificationSetting(spaceID: String) async throws -> NotificationSetting {
+        let url = URL(string: "\(Self.base)/users/me/\(spaceID)/spaceNotificationSetting")!
+        return Self.parseNotificationSetting(try Self.decode(try await api.get(url)))
+    }
+
+    static func parseNotificationSetting(_ json: JSONValue) -> NotificationSetting {
+        NotificationSetting(
+            muted: json["muteSetting"]?.stringValue == "MUTED",
+            level: json["notificationSetting"]?.stringValue.flatMap(NotificationSetting.Level.init(rawValue:)) ?? .unknown)
+    }
+
     /// When the user last read the space (in any Chat client); `nil` if never.
     /// Requires `chat.users.readstate.readonly`.
     public func lastReadTime(spaceID: String) async throws -> Date? {

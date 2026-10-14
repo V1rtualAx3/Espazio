@@ -348,13 +348,29 @@ final class GoogleAPITests: XCTestCase {
             var dmRead = "2026-10-14T09:00:00Z"
             var dmMessages = [#"{"name":"spaces/D/messages/1","sender":{"name":"users/9"},"text":"Salut","createTime":"2026-10-14T10:00:00Z"}"#]
             var peopleCalls = 0
+            var mutedActive = "2026-10-14T09:30:00Z"
+            var forYouActive = "2026-10-14T09:40:00Z"
+            var forYouCount = 1
         }
         let ws = Workspace()
         let http = FakeHTTP { request in
             let url = request.url!
             switch url.path {
             case "/v1/spaces":
-                return (200, #"{"spaces":[{"name":"spaces/D","spaceType":"DIRECT_MESSAGE","lastActiveTime":"\#(ws.dmActive)"},{"name":"spaces/G","displayName":"Équipe","spaceType":"SPACE","lastActiveTime":"2026-10-14T08:00:00Z"},{"name":"spaces/OLD","displayName":"Ancien","spaceType":"SPACE","lastActiveTime":"2026-09-01T08:00:00Z"}]}"#, [:])
+                return (200, #"{"spaces":[{"name":"spaces/D","spaceType":"DIRECT_MESSAGE","lastActiveTime":"\#(ws.dmActive)"},{"name":"spaces/G","displayName":"Équipe","spaceType":"SPACE","lastActiveTime":"2026-10-14T08:00:00Z"},{"name":"spaces/OLD","displayName":"Ancien","spaceType":"SPACE","lastActiveTime":"2026-09-01T08:00:00Z"},{"name":"spaces/M","displayName":"Bruit","spaceType":"SPACE","lastActiveTime":"\#(ws.mutedActive)"},{"name":"spaces/F","displayName":"Annonces","spaceType":"SPACE","lastActiveTime":"\#(ws.forYouActive)"}]}"#, [:])
+            case "/v1/users/me/spaces/M/spaceReadState", "/v1/users/me/spaces/F/spaceReadState":
+                return (200, #"{"lastReadTime":"2026-10-14T07:00:00Z"}"#, [:])
+            case "/v1/users/me/spaces/D/spaceNotificationSetting":
+                return (200, #"{"notificationSetting":"ALL","muteSetting":"UNMUTED"}"#, [:])
+            case "/v1/users/me/spaces/M/spaceNotificationSetting":
+                return (200, #"{"notificationSetting":"ALL","muteSetting":"MUTED"}"#, [:])
+            case "/v1/users/me/spaces/F/spaceNotificationSetting":
+                return (200, #"{"notificationSetting":"FOR_YOU","muteSetting":"UNMUTED"}"#, [:])
+            case "/v1/spaces/M/messages":
+                XCTFail("muted space messages must not be fetched")
+                return (200, "{}", [:])
+            case "/v1/spaces/F/messages":
+                return (200, #"{"messages":[{"name":"spaces/F/messages/\#(ws.forYouCount)","sender":{"name":"users/9"},"text":"Info","createTime":"\#(ws.forYouActive)"}]}"#, [:])
             case "/v1/users/me/spaces/D/spaceReadState":
                 return (200, #"{"lastReadTime":"\#(ws.dmRead)"}"#, [:])
             case "/v1/users/me/spaces/G/spaceReadState":
@@ -375,7 +391,8 @@ final class GoogleAPITests: XCTestCase {
         let now = ISO8601DateFormatter().date(from: "2026-10-14T10:00:30Z")!
 
         let first = try await monitor.sync(now: now)
-        XCTAssertEqual(first.unread.map(\.id), ["spaces/D"], "read group and old space are not unread")
+        XCTAssertEqual(first.unread.map(\.id), ["spaces/D", "spaces/F"], "read, old and muted spaces are not unread")
+        XCTAssertEqual(first.unread.last?.notifies, false, "\"For you\" conversations are listed silently")
         XCTAssertEqual(first.unread.first?.title, "Alice Martin", "DM named after its sender")
         XCTAssertEqual(first.unread.first?.preview, "Salut")
         XCTAssertTrue(first.fresh.isEmpty, "launch never replays old messages")
@@ -384,8 +401,11 @@ final class GoogleAPITests: XCTestCase {
         // A new message from Alice: reported once as fresh.
         ws.dmActive = "2026-10-14T10:05:00Z"
         ws.dmMessages.append(#"{"name":"spaces/D/messages/2","sender":{"name":"users/9"},"text":"Tu es là ?","createTime":"2026-10-14T10:05:00Z"}"#)
+        ws.mutedActive = "2026-10-14T10:04:00Z"
+        ws.forYouActive = "2026-10-14T10:04:30Z"
+        ws.forYouCount = 2
         let second = try await monitor.sync(now: now.addingTimeInterval(300))
-        XCTAssertEqual(second.fresh.map(\.id), ["spaces/D"])
+        XCTAssertEqual(second.fresh.map(\.id), ["spaces/D"], "no pop-up for muted or \"For you\" conversations")
         XCTAssertEqual(second.unread.first?.messages.count, 2)
         XCTAssertEqual(ws.peopleCalls, 1, "names are cached")
         let quiet = try await monitor.sync(now: now.addingTimeInterval(305))
@@ -395,7 +415,7 @@ final class GoogleAPITests: XCTestCase {
         ws.dmActive = "2026-10-14T10:06:00Z"
         ws.dmRead = "2026-10-14T10:06:00Z"
         let answered = try await monitor.sync(now: now.addingTimeInterval(360))
-        XCTAssertTrue(answered.unread.isEmpty)
+        XCTAssertEqual(answered.unread.map(\.id), ["spaces/F"], "the answered DM is read")
         XCTAssertTrue(answered.fresh.isEmpty, "the user's own message is never a notification")
     }
 

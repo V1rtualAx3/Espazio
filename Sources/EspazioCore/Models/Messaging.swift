@@ -86,10 +86,13 @@ public struct ChatUnread: Sendable, Equatable, Identifiable {
     public var space: ChatSpace
     /// Unread messages, oldest first (bounded).
     public var messages: [ChatMessage]
+    /// False when the user asked Google Chat to notify only mentions ("For you"): listed, no pop-up.
+    public var notifies: Bool
 
-    public init(space: ChatSpace, messages: [ChatMessage]) {
+    public init(space: ChatSpace, messages: [ChatMessage], notifies: Bool = true) {
         self.space = space
         self.messages = messages
+        self.notifies = notifies
     }
 
     public var id: String { space.id }

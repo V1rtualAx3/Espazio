@@ -7,7 +7,9 @@ import Foundation
 ///
 /// Cost per round: one `spaces.list`, plus a read state and a message list for each space whose
 /// activity changed (bounded per round), plus a periodic re-check of unread spaces so a
-/// conversation read elsewhere disappears.
+/// conversation read elsewhere disappears. The user's Chat notification settings are honored:
+/// muted conversations (or notifications off) are ignored, "For you" ones are listed without a
+/// pop-up.
 public actor ChatUnreadMonitor {
     public struct Snapshot: Sendable, Equatable {
         /// Most recent first.
@@ -28,6 +30,8 @@ public actor ChatUnreadMonitor {
     private var checked: [String: Date] = [:]
     private var unread: [String: ChatUnread] = [:]
     private var names: [String: String] = [:]
+    private var settings: [String: (value: GoogleChatService.NotificationSetting, fetched: Date)] = [:]
+    private let settingsLifetime: TimeInterval = 600
     private var peopleRetryAt = Date.distantPast
     private var cutoff: Date?
     private var primed = false
@@ -61,7 +65,7 @@ public actor ChatUnreadMonitor {
 
         let before = unread
         for activity in due.prefix(checksPerRound) {
-            try await check(activity)
+            try await check(activity, now: now)
         }
         // Spaces that vanished (left, deleted) are no longer unread.
         let present = Set(spaces.map(\.space.id))
@@ -71,7 +75,7 @@ public actor ChatUnreadMonitor {
         let completed = due.count <= checksPerRound
         var fresh: [ChatUnread] = []
         if primed {
-            for item in unread.values {
+            for item in unread.values where item.notifies {
                 let known = Set(before[item.id]?.messages.map(\.id) ?? [])
                 if item.messages.contains(where: { !known.contains($0.id) }) { fresh.append(item) }
             }
@@ -85,19 +89,34 @@ public actor ChatUnreadMonitor {
         unread[spaceID] = nil
     }
 
-    private func check(_ activity: GoogleChatService.SpaceActivity) async throws {
+    private func check(_ activity: GoogleChatService.SpaceActivity, now: Date) async throws {
         let space = activity.space
         guard let active = activity.lastActive else { return }
         let lastRead = try await service.lastReadTime(spaceID: space.id)
+        let setting = (lastRead.map { active > $0 } ?? true) ? try await notificationSetting(space.id, now: now) : .default
         if let lastRead, active <= lastRead {
+            unread[space.id] = nil
+        } else if setting.isSilenced {
             unread[space.id] = nil
         } else {
             let messages = try await service.listMessages(spaceID: space.id, after: lastRead, limit: 10)
                 .filter { message in lastRead.map { (message.createTime ?? .distantFuture) > $0 } ?? true }
                 .filter { !$0.text.isEmpty }
-            unread[space.id] = messages.isEmpty ? nil : ChatUnread(space: space, messages: messages)
+            unread[space.id] = messages.isEmpty ? nil : ChatUnread(space: space, messages: messages, notifies: setting.notifies)
         }
         checked[space.id] = active
+    }
+
+    private func notificationSetting(_ spaceID: String, now: Date) async throws -> GoogleChatService.NotificationSetting {
+        if let cached = settings[spaceID], now.timeIntervalSince(cached.fetched) < settingsLifetime { return cached.value }
+        let value: GoogleChatService.NotificationSetting
+        do {
+            value = try await service.notificationSetting(spaceID: spaceID)
+        } catch GoogleAPIError.notFound {
+            value = .default
+        }
+        settings[spaceID] = (value, now)
+        return value
     }
 
     private func resolveNames(now: Date) async {
