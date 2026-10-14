@@ -53,6 +53,22 @@ sections (Fonctionnalités, Corrections, Performance…).
 
 ## Builds signés
 
-Les builds de la CI sont signés ad hoc (non notarisés). Pour publier des binaires notarisés, ajouter les
-secrets du certificat Developer ID et passer `CODESIGN_IDENTITY` / `INSTALLER_IDENTITY` à
-`scripts/release-build.sh` (voir [UPDATES.md](UPDATES.md)).
+Sans configuration, les builds de la CI sont signés **ad hoc** : leur identité change à chaque build, et
+macOS redemande l’accès au Trousseau (jetons Google) après chaque mise à jour.
+
+**Identité auto-signée stable (recommandé, gratuit).** Une seule fois, sur un Mac :
+
+```sh
+scripts/create-signing-identity.sh
+gh secret set MACOS_SIGNING_P12 < ~/.espazio-signing/espazio-signing.p12.b64
+gh secret set MACOS_SIGNING_PASSWORD < ~/.espazio-signing/password.txt
+```
+
+La CI importe ce certificat (`scripts/import-signing-identity.sh`) et signe toutes les versions avec : le
+Trousseau ne pose plus la question qu’une fois (« Toujours autoriser »). Gatekeeper affiche toujours
+l’app comme provenant d’un développeur non identifié. Conservez `~/.espazio-signing` : un nouveau
+certificat redemande l’accès une fois.
+
+**Developer ID (distribution publique).** Pour des binaires notarisés, passer un certificat
+« Developer ID Application » dans `CODESIGN_IDENTITY` (runtime renforcé activé automatiquement) et
+`INSTALLER_IDENTITY` (voir [UPDATES.md](UPDATES.md)).

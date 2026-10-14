@@ -29,13 +29,13 @@ if command -v iconutil >/dev/null; then
     iconutil -c icns Resources/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"
 fi
 
-# Hardened runtime only with a real identity: with ad-hoc signing ("-") there is no Team ID, so
-# library validation would refuse to load the embedded Sparkle.framework and the app would die
-# at launch. Notarization requires a Developer ID anyway.
-if [[ "$IDENTITY" == "-" ]]; then
-    SIGN_FLAGS=(--force --timestamp=none --sign "$IDENTITY")
-else
+# Hardened runtime only with a Developer ID: ad-hoc ("-") and self-signed identities have no Team
+# ID, so library validation would refuse to load the embedded Sparkle.framework and the app would
+# die at launch. Notarization requires a Developer ID anyway.
+if [[ "$IDENTITY" == "Developer ID Application"* ]]; then
     SIGN_FLAGS=(--force --options runtime --timestamp --sign "$IDENTITY")
+else
+    SIGN_FLAGS=(--force --timestamp=none --sign "$IDENTITY")
 fi
 codesign "${SIGN_FLAGS[@]}" "$APP/Contents/MacOS/espazio-hook"
 if [[ -d "$APP/Contents/Frameworks/Sparkle.framework" ]]; then

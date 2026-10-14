@@ -88,8 +88,10 @@ pré-version bêta (branches de travail).
 - **PKG** — installe Espazio dans `/Applications`.
 
 > [!NOTE]
-> Les builds de la CI sont signés ad hoc et non notarisés. Au premier lancement : clic droit sur l’app ›
-> **Ouvrir**, ou Réglages Système › Confidentialité et sécurité › **Ouvrir quand même**.
+> Les builds de la CI ne sont pas notarisés. Au premier lancement : clic droit sur l’app ›
+> **Ouvrir**, ou Réglages Système › Confidentialité et sécurité › **Ouvrir quand même**. Si macOS demande
+> l’accès au Trousseau « app.espazio.google », choisissez **Toujours autoriser**
+> ([pourquoi](docs/RELEASING.md#builds-signés)).
 
 ### Depuis les sources
 

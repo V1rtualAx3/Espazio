@@ -63,7 +63,12 @@ jobs:
         run: swift build
       - name: Test
         run: swift test
-      - name: Bundle Espazio.app, .dmg and .pkg (release, ad-hoc signed)
+      - name: Signing identity (self-signed, stable across builds; ad-hoc if not configured)
+        env:
+          MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
+        run: scripts/import-signing-identity.sh
+      - name: Bundle Espazio.app, .dmg and .pkg
         run: scripts/package.sh
       - name: Smoke test (launch the bundled app)
         run: scripts/smoke-test.sh
@@ -106,6 +111,11 @@ jobs:
           node-version: 22
       - name: Install semantic-release
         run: npm install --no-save --no-package-lock --no-audit --no-fund semantic-release@24 @semantic-release/exec@6 @semantic-release/changelog@6 @semantic-release/git@10 conventional-changelog-conventionalcommits@8
+      - name: Signing identity (self-signed, stable across builds; ad-hoc if not configured)
+        env:
+          MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
+        run: scripts/import-signing-identity.sh
       - name: Move existing betas to the shared beta channel
         run: scripts/normalize-beta-channels.sh
       - name: Publish version (beta on work branches, release on main)
