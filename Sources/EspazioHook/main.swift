@@ -43,6 +43,11 @@ func run() -> Int32 {
     for key in ["TERM_PROGRAM", "__CFBundleIdentifier", "TERM_SESSION_ID", "ITERM_SESSION_ID"] {
         if let value = environment[key], !value.isEmpty { hints[key] = String(value.prefix(128)) }
     }
+    #if canImport(Darwin)
+    if let host = HostApplication.bundlePath(inAncestry: HostApplication.ancestorExecutablePaths()), host.utf8.count <= 1024 {
+        hints[HostApplication.hintKey] = host
+    }
+    #endif
     let isBlocking = ClaudeHookEvent(rawValue: event.hookEventName)?.isBlocking ?? false
     let request = BridgeRequest(
         id: UUID().uuidString, kind: "claude.hook", body: input, expectsReply: isBlocking, hints: hints)

@@ -164,6 +164,16 @@ public struct AgentSessionStore: Sendable, Equatable {
         enforceCapacity()
     }
 
+    /// Records how to bring a known session's client to front; every hook event carries it, so a
+    /// session first seen after its SessionStart still gets one. Returns whether it changed.
+    @discardableResult
+    public mutating func noteClientHint(sessionID: String, hint: String?) -> Bool {
+        guard let hint, !hint.isEmpty, var session = sessions[sessionID], session.clientHint != hint else { return false }
+        session.clientHint = hint
+        sessions[sessionID] = session
+        return true
+    }
+
     public mutating func remove(sessionID: String) {
         sessions[sessionID] = nil
     }

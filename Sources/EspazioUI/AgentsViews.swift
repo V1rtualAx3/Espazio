@@ -110,7 +110,7 @@ public struct ApprovalCard: View {
         } else {
             HStack(spacing: 8) {
                 if let session, session.clientHint != nil {
-                    Button("Ouvrir le terminal") { actions.openSession(session) }.buttonStyle(EZButtonStyle(.subtle))
+                    Button("Ouvrir") { actions.openSession(session) }.buttonStyle(EZButtonStyle(.subtle))
                 }
                 Spacer()
                 Button("Refuser") { actions.resolve(request, response: .deny(.user)) }

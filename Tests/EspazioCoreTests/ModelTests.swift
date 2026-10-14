@@ -169,6 +169,18 @@ final class ModelTests: XCTestCase {
         store.noteMetadata(sessionID: "a", provider: .claudeCode, projectPath: nil, control: .observeOnly, now: t)
         XCTAssertEqual(store.sessions["a"]?.control, .approvals, "control level never downgraded by metadata")
     }
+
+    func testClientHintLearnedFromLaterEvents() {
+        var store = AgentSessionStore()
+        let t = Date(timeIntervalSince1970: 0)
+        XCTAssertFalse(store.noteClientHint(sessionID: "x", hint: "/Applications/Claude.app"), "unknown session ignored")
+        store.apply(.activity(sessionID: "x", provider: .claudeCode, message: nil), now: t)
+        XCTAssertNil(store.sessions["x"]?.clientHint)
+        XCTAssertTrue(store.noteClientHint(sessionID: "x", hint: "/Applications/Claude.app"))
+        XCTAssertFalse(store.noteClientHint(sessionID: "x", hint: "/Applications/Claude.app"), "unchanged")
+        XCTAssertFalse(store.noteClientHint(sessionID: "x", hint: nil))
+        XCTAssertEqual(store.sessions["x"]?.clientHint, "/Applications/Claude.app")
+    }
 }
 
 final class DiffTests: XCTestCase {

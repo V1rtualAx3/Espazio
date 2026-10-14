@@ -68,9 +68,11 @@ extension AppCoordinator {
         }
         let (enabled, timeout) = await MainActor.run { (state.settings.modules.claudeCode, state.settings.agentRequestTimeout) }
         guard enabled else { return BridgeReply(id: request.id, status: .passThrough) }
-        let hint = request.hints["__CFBundleIdentifier"] ?? request.hints["TERM_PROGRAM"]
-        if let event = ClaudeHookMapper.agentEvent(for: input, clientHint: hint) {
-            await MainActor.run { self.apply(event) }
+        let hint = request.hints[HostApplication.hintKey] ?? request.hints["__CFBundleIdentifier"] ?? request.hints["TERM_PROGRAM"]
+        let event = ClaudeHookMapper.agentEvent(for: input, clientHint: hint)
+        await MainActor.run {
+            if let event { self.apply(event) }
+            if self.sessionStore.noteClientHint(sessionID: input.sessionID, hint: hint) { self.publishSessions() }
         }
         guard input.hookEventName == ClaudeHookEvent.permissionRequest.rawValue else {
             return BridgeReply(id: request.id, status: .accepted)
@@ -150,8 +152,15 @@ extension AppCoordinator {
         display.collapseAll()
     }
 
-    /// Maps `__CFBundleIdentifier` or `TERM_PROGRAM` to an installed application.
+    /// Maps the host application's bundle path, `__CFBundleIdentifier` or `TERM_PROGRAM` to an
+    /// installed application.
     static func applicationURL(forHint hint: String) -> URL? {
+        if hint.hasPrefix("/") {
+            // Bundle path found by espazio-hook in its process ancestry: only a real application.
+            let url = URL(fileURLWithPath: hint, isDirectory: true)
+            guard url.pathExtension == "app", Bundle(url: url)?.bundleIdentifier != nil else { return nil }
+            return url
+        }
         let known: [String: String] = [
             "Apple_Terminal": "com.apple.Terminal", "iTerm.app": "com.googlecode.iterm2", "vscode": "com.microsoft.VSCode",
             "WarpTerminal": "dev.warp.Warp-Stable", "ghostty": "com.mitchellh.ghostty", "WezTerm": "com.github.wez.wezterm",
