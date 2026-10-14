@@ -508,8 +508,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         for mail in state.mail {
             items.append(QuickActionItem(id: "mail:\(mail.id)", title: mail.subject, subtitle: mail.senderName, symbol: "envelope", action: .openMail(id: mail.id), keywords: ["mail"]))
         }
-        for space in state.chatSpaces.prefix(10) {
-            items.append(QuickActionItem(id: "chat:\(space.id)", title: space.displayName, subtitle: "Google Chat", symbol: "bubble.left", action: .openChat(spaceID: space.id)))
+        for chat in state.chatUnread.prefix(10) {
+            items.append(QuickActionItem(id: "chat:\(chat.id)", title: chat.title, subtitle: "Google Chat · non lu", symbol: "bubble.left", action: .openChat(spaceID: chat.id)))
         }
         items.append(QuickActionItem(
             id: "silent", title: state.settings.focusMode == .silent ? "Désactiver le mode silencieux" : "Activer le mode silencieux",
@@ -530,7 +530,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         case let .openMail(id):
             if let mail = state.mail.first(where: { $0.id == id }) { openMail(mail) }
         case let .openChat(spaceID):
-            if let space = state.chatSpaces.first(where: { $0.id == spaceID }) { openChatSpace(space) }
+            if let chat = state.chatUnread.first(where: { $0.id == spaceID }) { openChat(chat) }
         case let .completeReminder(id):
             completeReminder(id: id)
         case .toggleSilentMode:

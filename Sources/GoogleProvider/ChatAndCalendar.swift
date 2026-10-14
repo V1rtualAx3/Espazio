@@ -26,22 +26,25 @@ public struct GoogleChatService: Sendable {
         }
     }
 
-    public func listMessages(spaceID: String, limit: Int = 15) async throws -> [ChatMessage] {
+    /// Most recent messages (oldest first), only those created after `after` when given.
+    public func listMessages(spaceID: String, after: Date? = nil, limit: Int = 15) async throws -> [ChatMessage] {
         var components = URLComponents(string: "\(Self.base)/\(spaceID)/messages")!
         components.queryItems = [
             URLQueryItem(name: "pageSize", value: String(min(max(limit, 1), 50))),
             URLQueryItem(name: "orderBy", value: "createTime desc"),
         ]
+        if let after {
+            components.queryItems?.append(URLQueryItem(name: "filter", value: "createTime > \"\(Self.formatDate(after))\""))
+        }
         let json = try Self.decode(try await api.get(components.url!))
         return Self.parseMessages(json, spaceID: spaceID).reversed()
     }
 
-    /// Requires `chat.messages.create`.
-    public func send(spaceID: String, text: String) async throws -> ChatMessage {
-        let trimmed = String(text.prefix(4000))
-        let data = try await api.post(URL(string: "\(Self.base)/\(spaceID)/messages")!, json: .object(["text": .string(trimmed)]))
-        guard let message = Self.parseMessage(try Self.decode(data), spaceID: spaceID) else { throw GoogleAPIError.invalidResponse }
-        return message
+    /// When the user last read the space (in any Chat client); `nil` if never.
+    /// Requires `chat.users.readstate.readonly`.
+    public func lastReadTime(spaceID: String) async throws -> Date? {
+        let json = try Self.decode(try await api.get(URL(string: "\(Self.base)/users/me/\(spaceID)/spaceReadState")!))
+        return Self.parseDate(json["lastReadTime"]?.stringValue)
     }
 
     public static func webURL(spaceID: String) -> URL {
@@ -72,7 +75,7 @@ public struct GoogleChatService: Sendable {
         guard let name = json["name"]?.stringValue else { return nil }
         let sender = json["sender"]?["displayName"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } ?? "Participant"
         return ChatMessage(
-            id: name, spaceID: spaceID, sender: sender,
+            id: name, spaceID: spaceID, sender: sender, senderID: json["sender"]?["name"]?.stringValue,
             text: json["text"]?.stringValue ?? json["formattedText"]?.stringValue ?? "",
             createTime: parseDate(json["createTime"]?.stringValue), threadName: json["thread"]?["name"]?.stringValue)
     }
@@ -90,9 +93,44 @@ public struct GoogleChatService: Sendable {
         return ISO8601DateFormatter().date(from: text)
     }
 
-    private static func decode(_ data: Data) throws -> JSONValue {
+    static func formatDate(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
+    }
+
+    static func decode(_ data: Data) throws -> JSONValue {
         guard let json = try? JSONDecoder().decode(JSONValue.self, from: data) else { throw GoogleAPIError.invalidResponse }
         return json
+    }
+}
+
+/// People API, only to name the senders of Chat messages (`users/123` → "Alice Martin").
+/// Free; requires the People API enabled in the Cloud project and `directory.readonly`.
+public struct GooglePeopleService: Sendable {
+    let api: GoogleAPI
+
+    public init(api: GoogleAPI) { self.api = api }
+
+    /// Display names keyed by Chat user resource name (`users/123`). Unknown IDs are omitted.
+    public func displayNames(forChatUsers userIDs: [String]) async throws -> [String: String] {
+        let ids = Array(Set(userIDs.filter { $0.hasPrefix("users/") })).sorted().prefix(50)
+        guard !ids.isEmpty else { return [:] }
+        var components = URLComponents(string: "https://people.googleapis.com/v1/people:batchGet")!
+        components.queryItems = ids.map { URLQueryItem(name: "resourceNames", value: "people/" + $0.dropFirst("users/".count)) }
+            + [URLQueryItem(name: "personFields", value: "names")]
+        return Self.parseNames(try GoogleChatService.decode(try await api.get(components.url!)))
+    }
+
+    static func parseNames(_ json: JSONValue) -> [String: String] {
+        var names: [String: String] = [:]
+        for response in json["responses"]?.arrayValue ?? [] {
+            guard let requested = response["requestedResourceName"]?.stringValue, requested.hasPrefix("people/"),
+                  let name = response["person"]?["names"]?.arrayValue?.first?["displayName"]?.stringValue, !name.isEmpty
+            else { continue }
+            names["users/" + requested.dropFirst("people/".count)] = name
+        }
+        return names
     }
 }
 

@@ -9,6 +9,8 @@ Tout se passe sur ce Mac ; aucun serveur Espazio n’existe.
 2. *APIs & Services › Library* : activer selon vos besoins
    * **Gmail API**
    * **Google Chat API** (comptes Google Workspace uniquement, voir plus bas)
+   * **People API** (gratuite, facultative) : affiche le nom de l’expéditeur des messages Chat au lieu de
+     « Participant »
    * **Google Calendar API** (seulement si votre agenda Google n’est *pas* déjà synchronisé dans l’app
      Calendrier de macOS — sinon Espazio le lit via EventKit, sans doublon)
 
@@ -26,7 +28,7 @@ Tout se passe sur ce Mac ; aucun serveur Espazio n’existe.
 |---|---|
 | `gmail.readonly` | connexion Gmail |
 | `gmail.modify` | au premier « Marquer comme lu » / « Archiver » |
-| `chat.spaces.readonly`, `chat.messages.readonly`, `chat.messages.create` | connexion Google Chat |
+| `chat.spaces.readonly`, `chat.messages.readonly`, `chat.users.readstate.readonly`, `directory.readonly` | connexion Google Chat : conversations non lues et nom des expéditeurs |
 | `calendar.events.readonly` | option « Google Agenda direct » |
 
 ## 3. Client OAuth
@@ -54,11 +56,23 @@ Configuration* : nom, avatar, description ; les fonctionnalités interactives pe
 Sur un compte personnel ou si un administrateur bloque l’accès, Espazio affiche « Non pris en charge pour
 ce compte » sans affecter Gmail.
 
-Les noms d’expéditeurs peuvent apparaître comme « Participant » : l’API ne renvoie pas toujours le nom
-affiché en authentification utilisateur.
+Espazio n’affiche que les **conversations non lues**, comme pour Gmail : une conversation est non lue
+quand sa dernière activité est plus récente que votre état de lecture Google Chat. Cet état est mis à
+jour par tous les clients Chat, et par vos propres messages : ce que vous envoyez ne déclenche jamais de
+notification. Un clic ouvre la conversation dans Google Chat ; on lit et on répond là-bas.
+
+L’API Chat ne renvoie pas le nom des expéditeurs en authentification utilisateur : Espazio le demande à
+la People API (annuaire de votre organisation). Si elle n’est pas activée, les messages apparaissent
+signés « Participant ».
+
+Après une mise à jour qui ajoute des autorisations, Espazio affiche « Autorisation expirée » :
+reconnectez-vous une fois.
 
 ## Quotas et synchronisation
 
-Intervalle réglable (1 à 30 min dans l’interface, 3 min par défaut). En cas de quota (`429`,
+Google Chat est vérifié toutes les 5 s (une requête si rien n’a changé), Gmail toutes les 30 s (une
+requête `history.list` si rien n’a changé), Google Agenda selon l’intervalle réglable (1 à 30 min, 3 min
+par défaut). Un message ouvert depuis la notch disparaît aussitôt, sans attendre la synchronisation
+suivante. En cas de quota (`429`,
 `rateLimitExceeded`) ou d’erreur serveur, Espazio applique un backoff exponentiel (30 s → 30 min) et
 respecte `Retry-After`. La synchronisation est suspendue pendant la veille.

@@ -11,10 +11,14 @@ public enum GoogleScope {
     public static let chatSpacesReadonly = "https://www.googleapis.com/auth/chat.spaces.readonly"
     public static let chatMessagesReadonly = "https://www.googleapis.com/auth/chat.messages.readonly"
     public static let chatMessagesCreate = "https://www.googleapis.com/auth/chat.messages.create"
+    /// Per-space read state: tells which conversations are unread, as in the Chat app.
+    public static let chatReadStateReadonly = "https://www.googleapis.com/auth/chat.users.readstate.readonly"
+    /// Names of the people in the organization (the Chat API returns user IDs only).
+    public static let directoryReadonly = "https://www.googleapis.com/auth/directory.readonly"
     public static let calendarEventsReadonly = "https://www.googleapis.com/auth/calendar.events.readonly"
 
     public static let gmailRead: Set<String> = [gmailReadonly]
-    public static let chatRead: Set<String> = [chatSpacesReadonly, chatMessagesReadonly]
+    public static let chatRead: Set<String> = [chatSpacesReadonly, chatMessagesReadonly, chatReadStateReadonly, directoryReadonly]
 }
 
 public struct OAuthTokens: Codable, Sendable, Equatable {

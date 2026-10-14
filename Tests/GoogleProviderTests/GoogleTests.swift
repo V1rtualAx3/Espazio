@@ -342,6 +342,71 @@ final class GoogleAPITests: XCTestCase {
         XCTAssertEqual(parsedMessages.first?.threadName, "spaces/A/threads/t")
     }
 
+    func testChatUnreadFollowsReadState() async throws {
+        final class Workspace: @unchecked Sendable {
+            var dmActive = "2026-10-14T10:00:00Z"
+            var dmRead = "2026-10-14T09:00:00Z"
+            var dmMessages = [#"{"name":"spaces/D/messages/1","sender":{"name":"users/9"},"text":"Salut","createTime":"2026-10-14T10:00:00Z"}"#]
+            var peopleCalls = 0
+        }
+        let ws = Workspace()
+        let http = FakeHTTP { request in
+            let url = request.url!
+            switch url.path {
+            case "/v1/spaces":
+                return (200, #"{"spaces":[{"name":"spaces/D","spaceType":"DIRECT_MESSAGE","lastActiveTime":"\#(ws.dmActive)"},{"name":"spaces/G","displayName":"Équipe","spaceType":"SPACE","lastActiveTime":"2026-10-14T08:00:00Z"},{"name":"spaces/OLD","displayName":"Ancien","spaceType":"SPACE","lastActiveTime":"2026-09-01T08:00:00Z"}]}"#, [:])
+            case "/v1/users/me/spaces/D/spaceReadState":
+                return (200, #"{"lastReadTime":"\#(ws.dmRead)"}"#, [:])
+            case "/v1/users/me/spaces/G/spaceReadState":
+                return (200, #"{"lastReadTime":"2026-10-14T08:00:00Z"}"#, [:])
+            case "/v1/spaces/D/messages":
+                XCTAssertTrue(url.query?.contains("filter=createTime") ?? false)
+                return (200, #"{"messages":[\#(ws.dmMessages.reversed().joined(separator: ","))]}"#, [:])
+            case "/v1/people:batchGet":
+                ws.peopleCalls += 1
+                return (200, #"{"responses":[{"requestedResourceName":"people/9","person":{"names":[{"displayName":"Alice Martin"}]}}]}"#, [:])
+            default:
+                XCTFail("unexpected \(url.path)")
+                return (404, "{}", [:])
+            }
+        }
+        let api = GoogleAPI(auth: session(http, scopes: GoogleScope.chatRead), http: http)
+        let monitor = ChatUnreadMonitor(service: GoogleChatService(api: api), people: GooglePeopleService(api: api))
+        let now = ISO8601DateFormatter().date(from: "2026-10-14T10:00:30Z")!
+
+        let first = try await monitor.sync(now: now)
+        XCTAssertEqual(first.unread.map(\.id), ["spaces/D"], "read group and old space are not unread")
+        XCTAssertEqual(first.unread.first?.title, "Alice Martin", "DM named after its sender")
+        XCTAssertEqual(first.unread.first?.preview, "Salut")
+        XCTAssertTrue(first.fresh.isEmpty, "launch never replays old messages")
+        XCTAssertFalse(http.paths().contains("/v1/users/me/spaces/OLD/spaceReadState"), "inactive spaces not scanned")
+
+        // A new message from Alice: reported once as fresh.
+        ws.dmActive = "2026-10-14T10:05:00Z"
+        ws.dmMessages.append(#"{"name":"spaces/D/messages/2","sender":{"name":"users/9"},"text":"Tu es là ?","createTime":"2026-10-14T10:05:00Z"}"#)
+        let second = try await monitor.sync(now: now.addingTimeInterval(300))
+        XCTAssertEqual(second.fresh.map(\.id), ["spaces/D"])
+        XCTAssertEqual(second.unread.first?.messages.count, 2)
+        XCTAssertEqual(ws.peopleCalls, 1, "names are cached")
+        let quiet = try await monitor.sync(now: now.addingTimeInterval(305))
+        XCTAssertTrue(quiet.fresh.isEmpty)
+
+        // The user answers (from any client): the read state moves, nothing is unread or fresh.
+        ws.dmActive = "2026-10-14T10:06:00Z"
+        ws.dmRead = "2026-10-14T10:06:00Z"
+        let answered = try await monitor.sync(now: now.addingTimeInterval(360))
+        XCTAssertTrue(answered.unread.isEmpty)
+        XCTAssertTrue(answered.fresh.isEmpty, "the user's own message is never a notification")
+    }
+
+    func testPeopleNamesParsing() throws {
+        let json = try JSONDecoder().decode(JSONValue.self, from: Data(#"""
+        {"responses":[{"requestedResourceName":"people/1","person":{"names":[{"displayName":"Alice"}]}},
+                      {"requestedResourceName":"people/2","status":{"code":404}}]}
+        """#.utf8))
+        XCTAssertEqual(GooglePeopleService.parseNames(json), ["users/1": "Alice"])
+    }
+
     func testChatUnsupportedAccount() async {
         let http = FakeHTTP { _ in (403, #"{"error":{"code":403,"message":"Google Chat app not found. To create a Chat app, you must turn on the Chat API","status":"NOT_FOUND"}}"#, [:]) }
         let chat = GoogleChatService(api: GoogleAPI(auth: session(http, scopes: GoogleScope.chatRead), http: http))

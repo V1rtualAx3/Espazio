@@ -115,11 +115,8 @@ public final class EspazioState {
     public var mail: [MailSummary] = []
     public var gmailCanModify = false
     public var chatStatus: ConnectorStatus = .disconnected
-    public var chatSpaces: [ChatSpace] = []
-    public var chatMessages: [String: [ChatMessage]] = [:]
-    /// Spaces with activity not yet opened in Espazio (since launch).
-    public var chatUnread: Set<String> = []
-    public var chatCanReply = false
+    /// Unread Chat conversations, most recent first.
+    public var chatUnread: [ChatUnread] = []
     public var googleAccount: String?
 
     // Diagnostics
@@ -172,9 +169,7 @@ public protocol EspazioActions: AnyObject {
     func archiveMail(_ mail: MailSummary)
     func refreshGoogle()
     // Chat
-    func openChatSpace(_ space: ChatSpace)
-    func loadChatMessages(spaceID: String)
-    func sendChatReply(spaceID: String, text: String)
+    func openChat(_ chat: ChatUnread)
     // App
     func setFocusMode(_ mode: FocusMode)
     func openSettings()
@@ -206,9 +201,7 @@ public final class NoopActions: EspazioActions {
     public func markMailRead(_ mail: MailSummary) {}
     public func archiveMail(_ mail: MailSummary) {}
     public func refreshGoogle() {}
-    public func openChatSpace(_ space: ChatSpace) {}
-    public func loadChatMessages(spaceID: String) {}
-    public func sendChatReply(spaceID: String, text: String) {}
+    public func openChat(_ chat: ChatUnread) {}
     public func setFocusMode(_ mode: FocusMode) {}
     public func openSettings() {}
     public func collapseNotch() {}

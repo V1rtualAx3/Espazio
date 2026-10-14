@@ -64,16 +64,46 @@ public struct ChatMessage: Sendable, Equatable, Identifiable, Codable {
     public let id: String
     public var spaceID: String
     public var sender: String
+    /// Sender resource name, e.g. `users/123` (the API gives no display name to user-auth apps).
+    public var senderID: String?
     public var text: String
     public var createTime: Date?
     public var threadName: String?
 
-    public init(id: String, spaceID: String, sender: String, text: String, createTime: Date?, threadName: String?) {
+    public init(id: String, spaceID: String, sender: String, senderID: String? = nil, text: String, createTime: Date?, threadName: String?) {
         self.id = id
         self.spaceID = spaceID
         self.sender = sender
+        self.senderID = senderID
         self.text = text
         self.createTime = createTime
         self.threadName = threadName
+    }
+}
+
+/// A Google Chat conversation with messages the user has not read yet.
+public struct ChatUnread: Sendable, Equatable, Identifiable {
+    public var space: ChatSpace
+    /// Unread messages, oldest first (bounded).
+    public var messages: [ChatMessage]
+
+    public init(space: ChatSpace, messages: [ChatMessage]) {
+        self.space = space
+        self.messages = messages
+    }
+
+    public var id: String { space.id }
+    public var last: ChatMessage? { messages.last }
+    public var date: Date? { last?.createTime ?? space.lastActive }
+
+    /// The sender for a direct message, the space name otherwise.
+    public var title: String {
+        space.isDirectMessage ? (last?.sender ?? space.displayName) : space.displayName
+    }
+
+    /// Last message, prefixed by its sender in group spaces.
+    public var preview: String {
+        guard let last else { return "" }
+        return space.isDirectMessage ? last.text : "\(last.sender) : \(last.text)"
     }
 }

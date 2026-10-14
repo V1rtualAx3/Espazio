@@ -9,7 +9,7 @@ Machine : ________ · macOS : ________ · Écrans : ________ · Date : ________
 
 - [ ] N1 Lancement : aucune icône Dock, icône dans la barre des menus, notch invisible au repos.
 - [ ] N2 Survol de la découpe → déploiement après le délai ; sortie → repli ; aucune app ne perd le focus.
-- [ ] N3 Clic sur la notch → déploiement + champ de saisie utilisable (réponse Chat) sans activer Espazio.
+- [ ] N3 Clic sur la notch → déploiement sans activer Espazio ; champ des actions rapides utilisable.
 - [ ] N4 Échap / clic ailleurs → repli.
 - [ ] N5 ⌃⌥N bascule la notch ; ⌃⌥Espace ouvre les Actions rapides.
 - [ ] N6 Écran externe sans découpe : notch virtuelle centrée, hauteur = barre des menus.
@@ -61,7 +61,8 @@ Machine : ________ · macOS : ________ · Écrans : ________ · Date : ________
 - [ ] G4 Wi-Fi coupé → état d’erreur avec prochain essai ; retour réseau → reprise.
 - [ ] G5 Révoquer l’accès depuis myaccount.google.com → « Reconnexion nécessaire ».
 - [ ] G6 Compte personnel + Google Chat → « Non pris en charge pour ce compte », Gmail intact.
-- [ ] G7 Compte Workspace + Chat : espaces, messages, réponse.
+- [ ] G7 Compte Workspace + Chat : message reçu → badge et aperçu en moins de 10 s ; message envoyé par soi → aucune notification ; conversation lue ailleurs → disparaît ; clic → ouverture dans Google Chat et retrait immédiat.
+- [ ] G8 E-mail ouvert depuis la notch → retiré de la liste et du badge immédiatement.
 
 ## M — Mesures (voir PERFORMANCE.md)
 

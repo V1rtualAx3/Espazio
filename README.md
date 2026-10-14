@@ -70,8 +70,8 @@ la prochaine réunion, agents IA actifs, e-mails non lus. Une seule information 
 
 - **Calendrier** : prochain événement, compte à rebours, bouton pour rejoindre Meet / Zoom / Teams.
 - **Rappels** : du jour et en retard, création et accomplissement.
-- **Gmail** : non-lus, aperçu, marquer comme lu, archiver.
-- **Google Chat** (Workspace) : conversations et réponse depuis la notch.
+- **Gmail** : non-lus, aperçu, marquer comme lu, archiver ; badge discret dans la notch.
+- **Google Chat** (Workspace) : conversations non lues et badge dans la notch ; on lit et répond dans Google Chat.
 - **Actions rapides** <kbd>⌃</kbd><kbd>⌥</kbd><kbd>Espace</kbd> : recherche locale, et `+ appeler Paul demain 9h`
   pour créer un rappel.
 - **Concentration** : modes Normal, Concentré, Silencieux ; interruptions limitées en réunion ou en plein écran.
