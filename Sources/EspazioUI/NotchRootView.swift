@@ -179,10 +179,11 @@ struct PeekView: View {
                 .minimumScaleFactor(0.75)
         } else {
             Text(item.subtitle ?? item.title)
-                .font(EZFont.caption)
-                .foregroundStyle(EZColor.notchSecondary)
+                .font(EZFont.captionEmphasis)
+                .foregroundStyle(EZColor.notchPrimary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .minimumScaleFactor(0.8)
+                .truncationMode(.tail)
         }
     }
 }

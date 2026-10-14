@@ -258,3 +258,21 @@ final class CompactTimeTests: XCTestCase {
         XCTAssertEqual(ago(20 * 86400), "24/09")
     }
 }
+
+final class PeekTextTests: XCTestCase {
+    /// The peek's text wing is about 80 pt: the shown value (subtitle) stays short.
+    func testSystemEventsShowShortValues() {
+        let now = Date()
+        let caps = SystemEventMapper.activity(for: .capsLock(isOn: false), now: now)
+        XCTAssertEqual(caps?.subtitle, "Désactivé")
+        let output = SystemEventMapper.activity(for: .outputDeviceChanged(name: "AirPods Pro"), now: now)
+        XCTAssertEqual(output?.subtitle, "AirPods Pro")
+        XCTAssertEqual(output?.symbol, "airpodspro")
+        let bluetooth = SystemEventMapper.activity(for: .bluetooth(deviceName: "Magic Keyboard", connected: true), now: now)
+        XCTAssertEqual(bluetooth?.subtitle, "Magic Keyboard")
+        XCTAssertEqual(bluetooth?.symbol, "keyboard")
+        for item in [caps, output, bluetooth] {
+            XCTAssertLessThanOrEqual(item?.subtitle?.count ?? 0, 16)
+        }
+    }
+}

@@ -100,6 +100,8 @@ public enum SystemEventMapper {
     public static let criticalBatteryThreshold = 0.1
 
     /// Converts a system event into a notch activity, or `nil` when it is not worth showing.
+    /// The peek shows the symbol on one wing and the subtitle on the other (about 80 pt): the
+    /// subtitle holds the short value only; the title completes it for VoiceOver.
     public static func activity(for event: SystemEvent, now: Date) -> ActivityItem? {
         switch event {
         case let .volume(level, muted, device):
@@ -120,8 +122,8 @@ public enum SystemEventMapper {
                 expiresAt: now.addingTimeInterval(1.6))
         case let .outputDeviceChanged(name):
             return ActivityItem(
-                source: .audioDevice, priority: .p3, coalescingKey: "audio-device", title: name,
-                subtitle: "Sortie audio", symbol: symbolForAudioDevice(name), createdAt: now,
+                source: .audioDevice, priority: .p3, coalescingKey: "audio-device", title: "Sortie audio",
+                subtitle: name, symbol: symbolForAudioDevice(name), createdAt: now,
                 expiresAt: now.addingTimeInterval(2.5))
         case let .power(status, previous):
             guard status.hasBattery else { return nil }
@@ -153,15 +155,24 @@ public enum SystemEventMapper {
         case let .capsLock(isOn):
             return ActivityItem(
                 source: .keyboard, priority: .p3, coalescingKey: "capslock",
-                title: isOn ? "Verr. Maj activé" : "Verr. Maj désactivé", symbol: isOn ? "capslock.fill" : "capslock",
+                title: "Verrouillage majuscules", subtitle: isOn ? "Activé" : "Désactivé",
+                symbol: isOn ? "capslock.fill" : "capslock",
                 createdAt: now, expiresAt: now.addingTimeInterval(1.5))
         case let .bluetooth(name, connected):
             return ActivityItem(
-                source: .bluetooth, priority: .p3, coalescingKey: "bt:\(name)", title: name,
-                subtitle: connected ? "Connecté" : "Déconnecté",
-                symbol: connected ? "dot.radiowaves.left.and.right" : "wifi.slash", createdAt: now,
+                source: .bluetooth, priority: .p3, coalescingKey: "bt:\(name)", title: connected ? "Connecté" : "Déconnecté",
+                subtitle: name, symbol: connected ? bluetoothSymbol(name) : "wifi.slash", createdAt: now,
                 expiresAt: now.addingTimeInterval(2.5))
         }
+    }
+
+    static func bluetoothSymbol(_ name: String) -> String {
+        let lower = name.lowercased()
+        if lower.contains("airpods") || lower.contains("headphone") || lower.contains("casque") { return symbolForAudioDevice(name) }
+        if lower.contains("keyboard") || lower.contains("clavier") { return "keyboard" }
+        if lower.contains("mouse") || lower.contains("souris") { return "computermouse" }
+        if lower.contains("trackpad") { return "rectangle.and.hand.point.up.left" }
+        return "dot.radiowaves.left.and.right"
     }
 
     static func symbolForAudioDevice(_ name: String) -> String {
