@@ -104,6 +104,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         power.stop()
         keyboard.stop()
         bluetooth?.stop()
+        // A normal quit is not a crash during the Bluetooth start-up.
+        UserDefaults.standard.removeObject(forKey: Self.bluetoothStartingKey)
         media.stopAll()
         eventKit.stop()
         display.stop()
@@ -266,12 +268,31 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         state.mediaAvailable = media.isAnyRunning
     }
 
+    /// Set while the Bluetooth module starts; still set at the next launch means the app died
+    /// there, and the module is turned off instead of crashing again at every launch.
+    private static let bluetoothStartingKey = "bluetooth.starting"
+
     private func configureBluetooth(_ enabled: Bool) {
+        let defaults = UserDefaults.standard
+        if enabled, defaults.bool(forKey: Self.bluetoothStartingKey) {
+            defaults.removeObject(forKey: Self.bluetoothStartingKey)
+            var settings = state.settings
+            settings.modules.bluetooth = false
+            updateSettings(settings)
+            showError("Bluetooth désactivé : Espazio s’est arrêté pendant son démarrage. Vous pouvez le réactiver dans les réglages.")
+            return
+        }
         if enabled {
+            defaults.set(true, forKey: Self.bluetoothStartingKey)
             let monitor = bluetooth ?? BluetoothMonitor()
             monitor.onEvent = { [weak self] event in self?.handleSystem(event) }
             monitor.start()
             bluetooth = monitor
+            // Connect notifications for already-connected devices arrive within the first seconds.
+            Task {
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                defaults.removeObject(forKey: Self.bluetoothStartingKey)
+            }
         } else {
             bluetooth?.stop()
             bluetooth = nil

@@ -3,11 +3,15 @@ import Foundation
 import IOBluetooth
 
 /// Bluetooth connect / disconnect notifications (opt-in; requires the Bluetooth permission).
+///
+/// IOBluetooth may call back on a thread of its own: the callbacks are nonisolated and only hop
+/// to the main actor with plain values. A main-actor `@objc` callback invoked off the main thread
+/// is a fatal isolation error in Swift 6, which killed the app as soon as permission was granted.
 @MainActor
 public final class BluetoothMonitor: NSObject {
     public var onEvent: ((SystemEvent) -> Void)?
     private var connectNotification: IOBluetoothUserNotification?
-    private var disconnectNotifications: [String: IOBluetoothUserNotification] = [:]
+    private let registry = DisconnectRegistry()
     /// Connect notifications for already-connected devices arrive right after registration.
     private var quietUntil = Date.distantPast
 
@@ -24,23 +28,51 @@ public final class BluetoothMonitor: NSObject {
     public func stop() {
         connectNotification?.unregister()
         connectNotification = nil
-        disconnectNotifications.values.forEach { $0.unregister() }
-        disconnectNotifications.removeAll()
+        registry.removeAll()
     }
 
-    @objc private func deviceConnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+    @objc nonisolated private func deviceConnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
         let address = device.addressString ?? UUID().uuidString
-        disconnectNotifications[address]?.unregister()
-        disconnectNotifications[address] = device.register(forDisconnectNotification: self, selector: #selector(deviceDisconnected(_:device:)))
-        guard Date() >= quietUntil else { return }
-        onEvent?(.bluetooth(deviceName: device.name ?? "Périphérique Bluetooth", connected: true))
+        let name = device.name ?? "Périphérique Bluetooth"
+        registry.replace(address, with: device.register(forDisconnectNotification: self, selector: #selector(deviceDisconnected(_:device:))))
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, Date() >= self.quietUntil else { return }
+                self.onEvent?(.bluetooth(deviceName: name, connected: true))
+            }
+        }
     }
 
-    @objc private func deviceDisconnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
-        if let address = device.addressString {
-            disconnectNotifications[address]?.unregister()
-            disconnectNotifications[address] = nil
+    @objc nonisolated private func deviceDisconnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
+        if let address = device.addressString { registry.replace(address, with: nil) }
+        let name = device.name ?? "Périphérique Bluetooth"
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                self?.onEvent?(.bluetooth(deviceName: name, connected: false))
+            }
         }
-        onEvent?(.bluetooth(deviceName: device.name ?? "Périphérique Bluetooth", connected: false))
+    }
+}
+
+/// Per-device disconnect registrations, touched from IOBluetooth's callback thread and from the
+/// main actor.
+private final class DisconnectRegistry: @unchecked Sendable {
+    private let lock = NSLock()
+    private var notifications: [String: IOBluetoothUserNotification] = [:]
+
+    func replace(_ address: String, with notification: IOBluetoothUserNotification?) {
+        lock.lock()
+        let previous = notifications[address]
+        notifications[address] = notification
+        lock.unlock()
+        previous?.unregister()
+    }
+
+    func removeAll() {
+        lock.lock()
+        let all = notifications.values
+        notifications.removeAll()
+        lock.unlock()
+        all.forEach { $0.unregister() }
     }
 }
