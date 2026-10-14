@@ -97,15 +97,28 @@ struct PeekView: View {
         }
         .frame(height: geometry.notchRect.height)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel([item.title, item.subtitle].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel(isCounterItem
+            ? counters.map { "\($0.count) \($0.label)" }.joined(separator: ", ")
+            : [item.title, item.subtitle].compactMap { $0 }.joined(separator: ", "))
     }
+
+    private var isCounterItem: Bool {
+        item.coalescingKey == LiveActivityKey.mail || item.coalescingKey == LiveActivityKey.chat
+    }
+
+    /// Unread counters shown on their own: one per wing (e-mail left, Chat right), or icon left and
+    /// count right when there is only one, always in the same style.
+    private var counters: [UnreadCounter] { UnreadCounter.all(in: state) }
 
     @ViewBuilder
     private var leading: some View {
-        if item.coalescingKey == LiveActivityKey.mail || item.coalescingKey == LiveActivityKey.chat {
-            Image(systemName: item.symbol)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(EZColor.notchSecondary)
+        if isCounterItem {
+            let counters = self.counters
+            if counters.count >= 2 {
+                CounterLabel(counter: counters[0])
+            } else if let only = counters.first {
+                CounterIcon(symbol: only.symbol)
+            }
         } else if item.source == .media, let artwork = state.artwork {
             Image(nsImage: artwork)
                 .resizable()
@@ -120,24 +133,29 @@ struct PeekView: View {
         }
     }
 
+    @ViewBuilder
     private var trailing: some View {
-        HStack(spacing: 6) {
-            Spacer(minLength: 0)
-            mainTrailing
-            if !item.requiresDecision {
-                NotchBadges(state: state, excluding: item.coalescingKey)
+        if isCounterItem {
+            let counters = self.counters
+            if counters.count >= 2 {
+                CounterLabel(counter: counters[1])
+            } else if let only = counters.first {
+                CounterCount(count: only.count)
+            }
+        } else {
+            HStack(spacing: 6) {
+                Spacer(minLength: 0)
+                mainTrailing
+                if !item.requiresDecision {
+                    NotchBadges(state: state, excluding: item.coalescingKey)
+                }
             }
         }
     }
 
     @ViewBuilder
     private var mainTrailing: some View {
-        if item.coalescingKey == LiveActivityKey.mail || item.coalescingKey == LiveActivityKey.chat {
-            // Discreet badge item: the count alone, the symbol is on the other side.
-            Text(item.subtitle ?? "")
-                .font(EZFont.captionEmphasis.monospacedDigit())
-                .foregroundStyle(EZColor.notchPrimary)
-        } else if let progress = item.progress {
+        if let progress = item.progress {
             EZProgressBar(value: progress).frame(width: 56)
         } else if item.coalescingKey == LiveActivityKey.event, let event = state.events.first(where: { $0.id == item.reference }) {
             // Live countdown, ticking only while the peek is on screen.
@@ -169,6 +187,63 @@ struct PeekView: View {
     }
 }
 
+/// An unread counter (e-mail or Chat) as configured in the settings.
+struct UnreadCounter: Equatable {
+    let symbol: String
+    let count: Int
+    let label: String
+    let key: String
+
+    /// E-mail first, then Chat; only enabled, non-zero counters.
+    static func all(in state: EspazioState) -> [UnreadCounter] {
+        let live = state.settings.live
+        let modules = state.settings.modules
+        var counters: [UnreadCounter] = []
+        if modules.gmail, live.mailBadge, let mail = state.unreadCount, mail > 0 {
+            counters.append(UnreadCounter(symbol: "envelope", count: mail, label: "e-mails non lus", key: LiveActivityKey.mail))
+        }
+        if modules.googleChat, live.chatBadge, !state.chatUnread.isEmpty {
+            counters.append(UnreadCounter(
+                symbol: "bubble.left", count: state.chatUnread.count, label: "conversations Chat non lues", key: LiveActivityKey.chat))
+        }
+        return counters
+    }
+}
+
+private struct CounterIcon: View {
+    let symbol: String
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(EZColor.notchSecondary)
+    }
+}
+
+private struct CounterCount: View {
+    let count: Int
+
+    var body: some View {
+        Text(BadgeCount.text(count))
+            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+            .foregroundStyle(EZColor.notchPrimary)
+    }
+}
+
+/// Icon and count side by side, for one wing.
+private struct CounterLabel: View {
+    let counter: UnreadCounter
+
+    var body: some View {
+        HStack(spacing: 5) {
+            CounterIcon(symbol: counter.symbol)
+            CounterCount(count: counter.count)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(counter.count) \(counter.label)")
+    }
+}
+
 /// Small unread counters (e-mail, Chat) shown next to whatever the peek displays, so a playing
 /// track or a meeting countdown never hides them.
 struct NotchBadges: View {
@@ -177,13 +252,10 @@ struct NotchBadges: View {
     let excluding: String
 
     var body: some View {
-        let live = state.settings.live
-        let modules = state.settings.modules
-        let mail = modules.gmail && live.mailBadge && excluding != LiveActivityKey.mail ? (state.unreadCount ?? 0) : 0
-        let chat = modules.googleChat && live.chatBadge && excluding != LiveActivityKey.chat ? state.chatUnread.count : 0
         HStack(spacing: 5) {
-            if mail > 0 { badge("envelope.fill", count: mail, label: "e-mails non lus") }
-            if chat > 0 { badge("bubble.left.fill", count: chat, label: "conversations Chat avec de nouveaux messages") }
+            ForEach(UnreadCounter.all(in: state).filter { $0.key != excluding }, id: \.key) { counter in
+                badge(counter.symbol + ".fill", count: counter.count, label: counter.label)
+            }
         }
         .fixedSize()
     }

@@ -42,6 +42,26 @@ final class NotchRenderingTests: XCTestCase {
         }
     }
 
+    func testUnreadCountersPeekRenders() {
+        let state = PreviewData.state(longStrings: false)
+        state.settings.modules.gmail = true
+        state.settings.modules.googleChat = true
+        state.chatStatus = .connected(account: "moi@example.com")
+        state.chatUnread = [ChatUnread(
+            space: ChatSpace(id: "spaces/A", displayName: "Équipe", isDirectMessage: false, lastActive: Date()),
+            messages: [ChatMessage(id: "spaces/A/messages/1", spaceID: "spaces/A", sender: "Alice", text: "Salut", createTime: Date(), threadName: nil)])]
+        XCTAssertEqual(UnreadCounter.all(in: state).map(\.count), [3, 1], "e-mail left, Chat right")
+        for counts in [(3, 1), (3, 0)] {
+            if counts.1 == 0 { state.chatUnread = [] }
+            let item = LiveActivityPlanner.select(
+                .init(unreadMail: counts.0, unreadChats: counts.1), settings: state.settings.live, now: Date())
+            state.peek = item
+            let presentation = PreviewData.presentation(.peek, tab: .home, screen: PreviewData.builtInScreen)
+            let size = presentation.geometry.windowFrame(for: .peek).size
+            XCTAssertNotNil(render(NotchRootView(presentation: presentation, state: state, actions: NoopActions()), size: size))
+        }
+    }
+
     func testVirtualNotchOnExternalDisplay() {
         let (view, size) = notch(.expanded, tab: .agents, screen: PreviewData.externalScreen)
         XCTAssertNotNil(render(view, size: size))
