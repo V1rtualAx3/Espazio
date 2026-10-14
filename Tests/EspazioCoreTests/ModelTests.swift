@@ -94,9 +94,14 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(LiveActivityPlanner.select(.init(nextEvent: meeting, waitingAgents: 1), settings: settings, now: now)?.coalescingKey,
                        LiveActivityKey.agents, "waiting agent first")
         XCTAssertEqual(LiveActivityPlanner.select(.init(activeAgents: 2), settings: settings, now: now)?.subtitle, "2 actifs")
-        XCTAssertNil(LiveActivityPlanner.select(.init(unreadMail: 3), settings: settings, now: now), "mail off by default")
-        settings.unreadMail = true
-        XCTAssertEqual(LiveActivityPlanner.select(.init(unreadMail: 3), settings: settings, now: now)?.subtitle, "3 non lus")
+        XCTAssertEqual(LiveActivityPlanner.select(.init(unreadMail: 3), settings: settings, now: now)?.subtitle, "3", "mail badge on by default")
+        XCTAssertEqual(LiveActivityPlanner.select(.init(unreadMail: 3, unreadChats: 2), settings: settings, now: now)?.coalescingKey,
+                       LiveActivityKey.mail, "mail before chat")
+        XCTAssertEqual(LiveActivityPlanner.select(.init(unreadMail: 0, unreadChats: 2), settings: settings, now: now)?.coalescingKey,
+                       LiveActivityKey.chat)
+        XCTAssertEqual(LiveActivityPlanner.select(.init(unreadMail: 250), settings: settings, now: now)?.subtitle, "99+")
+        settings.mailBadge = false
+        XCTAssertNil(LiveActivityPlanner.select(.init(unreadMail: 3), settings: settings, now: now))
 
         let item = LiveActivityPlanner.select(.init(nowPlaying: playing), settings: settings, now: now)
         XCTAssertEqual(item?.priority, .p4)
@@ -107,9 +112,10 @@ final class ModelTests: XCTestCase {
     }
 
     func testLiveSettingsDecoding() {
-        let decoded = EspazioSettings.decode(Data(#"{"live":{"eventLeadMinutes":1000,"unreadMail":true}}"#.utf8))
+        let decoded = EspazioSettings.decode(Data(#"{"live":{"eventLeadMinutes":1000,"unreadMail":false,"chatBadge":false}}"#.utf8))
         XCTAssertEqual(decoded.live.eventLeadMinutes, 240)
-        XCTAssertTrue(decoded.live.unreadMail)
+        XCTAssertTrue(decoded.live.mailBadge, "the former opt-in key no longer hides the badge")
+        XCTAssertFalse(decoded.live.chatBadge)
         XCTAssertTrue(decoded.live.media)
     }
 
@@ -235,5 +241,20 @@ final class DiffTests: XCTestCase {
     func testShortcutNames() {
         XCTAssertEqual(KeyShortcut(keyCode: 122, modifiers: [.command, .shift]).displayString, "⇧⌘F1")
         XCTAssertEqual(KeyShortcut(keyCode: 18, modifiers: [.option]).displayString, "⌥1")
+    }
+}
+
+final class CompactTimeTests: XCTestCase {
+    func testFormats() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 14, hour: 15, minute: 0))!
+        func ago(_ seconds: TimeInterval) -> String { CompactTime.string(for: now.addingTimeInterval(-seconds), now: now, calendar: calendar) }
+        XCTAssertEqual(ago(20), "maintenant")
+        XCTAssertEqual(ago(5 * 60), "5 min")
+        XCTAssertEqual(ago(3 * 3600), "12:00")
+        XCTAssertEqual(ago(20 * 3600), "hier")
+        XCTAssertEqual(ago(3 * 86400), "dim.")
+        XCTAssertEqual(ago(20 * 86400), "24/09")
     }
 }

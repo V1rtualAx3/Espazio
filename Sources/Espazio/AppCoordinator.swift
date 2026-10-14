@@ -332,7 +332,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
             nextEvent: (modules.calendar || modules.googleCalendar) ? state.nextEvent(now: now) : nil,
             waitingAgents: agentSessions.filter { $0.state == .waiting }.count,
             activeAgents: agentSessions.filter { $0.state == .active }.count,
-            unreadMail: modules.gmail ? state.unreadCount : nil)
+            unreadMail: modules.gmail ? state.unreadCount : nil,
+            unreadChats: modules.googleChat ? state.chatUnread.count : 0)
         let settings = state.settings.live
         let selected = LiveActivityPlanner.select(inputs, settings: settings, now: now)
         var changed = false

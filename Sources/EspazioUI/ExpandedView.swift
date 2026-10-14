@@ -46,6 +46,7 @@ struct ExpandedView: View {
         switch tab {
         case .agents: return state.pendingRequests.isEmpty ? nil : state.pendingRequests.count
         case .mail: return state.unreadCount.flatMap { $0 > 0 ? $0 : nil }
+        case .chat: return state.chatUnread.isEmpty ? nil : state.chatUnread.count
         default: return nil
         }
     }

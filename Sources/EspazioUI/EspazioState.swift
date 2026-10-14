@@ -117,6 +117,8 @@ public final class EspazioState {
     public var chatStatus: ConnectorStatus = .disconnected
     public var chatSpaces: [ChatSpace] = []
     public var chatMessages: [String: [ChatMessage]] = [:]
+    /// Spaces with activity not yet opened in Espazio (since launch).
+    public var chatUnread: Set<String> = []
     public var chatCanReply = false
     public var googleAccount: String?
 

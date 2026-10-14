@@ -50,15 +50,18 @@ public struct GoogleChatService: Sendable {
     }
 
     static func parseSpaces(_ json: JSONValue) -> [SpaceActivity] {
-        (json["spaces"]?.arrayValue ?? []).compactMap { space in
-            guard let name = space["name"]?.stringValue else { return nil }
+        var result: [SpaceActivity] = []
+        for space in json["spaces"]?.arrayValue ?? [] {
+            guard let name = space["name"]?.stringValue else { continue }
             let type = space["spaceType"]?.stringValue ?? space["type"]?.stringValue
             let isDM = type == "DIRECT_MESSAGE" || type == "DM"
             let display = space["displayName"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 } ?? (isDM ? "Message direct" : "Espace")
-            return SpaceActivity(
-                space: ChatSpace(id: name, displayName: display, isDirectMessage: isDM),
-                lastActive: parseDate(space["lastActiveTime"]?.stringValue))
+            let lastActive = parseDate(space["lastActiveTime"]?.stringValue)
+            result.append(SpaceActivity(
+                space: ChatSpace(id: name, displayName: display, isDirectMessage: isDM, lastActive: lastActive),
+                lastActive: lastActive))
         }
+        return result
     }
 
     static func parseMessages(_ json: JSONValue, spaceID: String) -> [ChatMessage] {

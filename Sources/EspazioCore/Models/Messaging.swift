@@ -48,11 +48,14 @@ public struct ChatSpace: Sendable, Equatable, Identifiable, Codable {
     public let id: String
     public var displayName: String
     public var isDirectMessage: Bool
+    /// Last message or event in the space.
+    public var lastActive: Date?
 
-    public init(id: String, displayName: String, isDirectMessage: Bool) {
+    public init(id: String, displayName: String, isDirectMessage: Bool, lastActive: Date? = nil) {
         self.id = id
         self.displayName = displayName
         self.isDirectMessage = isDirectMessage
+        self.lastActive = lastActive
     }
 }
 

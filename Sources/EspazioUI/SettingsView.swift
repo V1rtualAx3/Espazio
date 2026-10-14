@@ -87,12 +87,14 @@ public struct SettingsView: View {
                     }
                 }
                 Toggle("Agents IA actifs ou en attente", isOn: binding(\.live.agents))
-                Toggle("Nombre d’e-mails non lus", isOn: binding(\.live.unreadMail))
+                Toggle("Badge des e-mails non lus", isOn: binding(\.live.mailBadge))
                     .disabled(!state.settings.modules.gmail)
+                Toggle("Badge des nouveaux messages Google Chat", isOn: binding(\.live.chatBadge))
+                    .disabled(!state.settings.modules.googleChat)
             } header: {
                 Text("Affichage continu (notch au repos)")
             } footer: {
-                Text("Une seule information à la fois, par priorité : agent en attente, réunion proche, média, agents actifs, e-mails. Les notifications ponctuelles passent devant.")
+                Text("Une seule information à la fois, par priorité : agent en attente, réunion proche, média, agents actifs, e-mails, Chat. Les badges d’e-mails et de Chat restent visibles à côté des autres informations. Les notifications ponctuelles passent devant.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Concentration") {

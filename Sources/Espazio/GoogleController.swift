@@ -3,8 +3,10 @@ import EspazioCore
 import EspazioUI
 import GoogleProvider
 
-/// Google connectors: OAuth (PKCE + loopback, system browser — no WebView), moderate sync loop
-/// with configurable interval, exponential backoff, rate limiting and progressive consent.
+/// Google connectors: OAuth (PKCE + loopback, system browser — no WebView), exponential backoff,
+/// rate limiting and progressive consent. Each connector has its own loop: Chat every 5 s (one
+/// cheap `spaces.list` request when nothing changed), Gmail every 30 s (one `history.list`
+/// request), Calendar at the user's interval.
 @MainActor
 final class GoogleController {
     private weak var coordinator: AppCoordinator?
@@ -13,10 +15,19 @@ final class GoogleController {
     private let secretItem = KeychainItem(service: "app.espazio.google", account: "client-secret")
     private var session: GoogleAuthSession?
     private var gmailMonitor: GmailMonitor?
-    private var loopTask: Task<Void, Never>?
+    private var loops: [SyncKind: Task<Void, Never>] = [:]
+    private var attempts: [SyncKind: Int] = [:]
+    /// Delayed restart after a pause (system sleep, battery saver).
+    private var resumeTask: Task<Void, Never>?
+
+    enum SyncKind: CaseIterable {
+        case chat, gmail, calendar
+    }
     private var signInTask: Task<Void, Never>?
-    private var attempt = 0
-    private var bucket = TokenBucket(capacity: 20, refillRate: 0.2, now: Date())
+    /// Spaces where the user just replied from Espazio: their own message is not "new".
+    private var recentlySent: [String: Date] = [:]
+    /// ~13 requests a minute in steady state (12 Chat + 2 Gmail + Calendar), well within quotas.
+    private var bucket = TokenBucket(capacity: 30, refillRate: 0.5, now: Date())
     private let backoff = ExponentialBackoff(base: 30, maximum: 30 * 60, jitter: 0.2)
     private var chatLastActive: [String: Date] = [:]
     private var chatPrimed = false
@@ -40,14 +51,17 @@ final class GoogleController {
     }
 
     func stop() {
-        loopTask?.cancel()
-        loopTask = nil
+        resumeTask?.cancel()
+        resumeTask = nil
+        loops.values.forEach { $0.cancel() }
+        loops.removeAll()
     }
 
     func restart() {
         stop()
-        attempt = 0
+        attempts.removeAll()
         chatPrimed = false
+        state?.chatUnread = []
         chatLastActive.removeAll()
         Task { await gmailMonitor?.reset() }
         gmailMonitor = nil
@@ -66,8 +80,8 @@ final class GoogleController {
     func resume(after delay: TimeInterval) {
         paused = false
         guard anyEnabled else { return }
-        loopTask?.cancel()
-        loopTask = Task { [weak self] in
+        stop()
+        resumeTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled else { return }
             self?.startLoop()
@@ -82,13 +96,31 @@ final class GoogleController {
     }
 
     private func startLoop() {
-        loopTask?.cancel()
-        loopTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                let delay = await self.syncOnce()
-                try? await Task.sleep(nanoseconds: UInt64(max(delay, 30) * 1_000_000_000))
+        stop()
+        for kind in SyncKind.allCases {
+            loops[kind] = Task { [weak self] in
+                while !Task.isCancelled {
+                    guard let self else { return }
+                    let delay = await self.syncOnce(kind)
+                    try? await Task.sleep(nanoseconds: UInt64(max(delay, 5) * 1_000_000_000))
+                }
             }
+        }
+    }
+
+    private func interval(for kind: SyncKind) -> TimeInterval {
+        switch kind {
+        case .chat: return 5
+        case .gmail: return 30
+        case .calendar: return state?.settings.googleSyncInterval ?? 180
+        }
+    }
+
+    private func isEnabled(_ kind: SyncKind) -> Bool {
+        switch kind {
+        case .chat: return modules.googleChat
+        case .gmail: return modules.gmail
+        case .calendar: return modules.googleCalendar
         }
     }
 
@@ -168,6 +200,7 @@ final class GoogleController {
             state.mail = []
             state.unreadCount = nil
             state.chatSpaces = []
+            state.chatUnread = []
             state.chatMessages = [:]
             state.googleAccount = nil
             self.coordinator?.googleEvents = []
@@ -193,53 +226,51 @@ final class GoogleController {
 
     // MARK: - Sync
 
-    /// One sync round; returns the delay before the next one.
-    private func syncOnce() async -> TimeInterval {
-        let interval = state?.settings.googleSyncInterval ?? 180
-        guard let session, await session.isConnected, anyEnabled else {
+    /// One sync round for a connector; returns the delay before the next one.
+    private func syncOnce(_ kind: SyncKind) async -> TimeInterval {
+        let interval = interval(for: kind)
+        guard isEnabled(kind) else { return max(interval, 60) }
+        guard let session, await session.isConnected else {
             setStatuses(.disconnected)
             return interval
         }
-        guard bucket.tryConsume(5, now: Date()) else { return bucket.waitTime(for: 5, now: Date()) + 1 }
-        await refreshStatuses()
+        guard bucket.tryConsume(1, now: Date()) else { return bucket.waitTime(for: 1, now: Date()) + 1 }
+        if kind == .calendar { await refreshStatuses() }
         let api = GoogleAPI(auth: session, http: http)
-        var worst: GoogleAPIError?
-
-        if modules.gmail {
-            do {
+        var failure: GoogleAPIError?
+        do {
+            switch kind {
+            case .gmail:
                 try await syncGmail(api: api)
-            } catch {
-                worst = handle(error, update: { self.state?.gmailStatus = $0 })
-            }
-        }
-        if modules.googleChat {
-            do {
+            case .chat:
                 try await syncChat(api: api)
-            } catch {
-                worst = handle(error, update: { self.state?.chatStatus = $0 }) ?? worst
-            }
-        }
-        if modules.googleCalendar {
-            do {
+            case .calendar:
                 let now = Date()
                 coordinator?.googleEvents = try await GoogleCalendarService(api: api).upcomingEvents(from: now, to: now.addingTimeInterval(24 * 3600))
                 coordinator?.mergeEvents()
-            } catch {
-                worst = handle(error, update: { _ in }) ?? worst
+            }
+        } catch {
+            failure = handle(error, attempt: attempts[kind] ?? 0) { status in
+                switch kind {
+                case .gmail: self.state?.gmailStatus = status
+                case .chat: self.state?.chatStatus = status
+                case .calendar: break
+                }
             }
         }
 
-        guard let worst, worst.isRetryable else {
-            attempt = 0
+        guard let failure, failure.isRetryable else {
+            attempts[kind] = 0
             return interval
         }
-        if case let .rateLimited(retryAfter?) = worst { return max(retryAfter, interval) }
-        attempt += 1
+        if case let .rateLimited(retryAfter?) = failure { return max(retryAfter, interval) }
+        let attempt = (attempts[kind] ?? 0) + 1
+        attempts[kind] = attempt
         return backoff.delay(attempt: attempt)
     }
 
     /// Maps an error to a connector status; returns retryable errors for backoff.
-    private func handle(_ error: Error, update: (ConnectorStatus) -> Void) -> GoogleAPIError? {
+    private func handle(_ error: Error, attempt: Int, update: (ConnectorStatus) -> Void) -> GoogleAPIError? {
         let apiError = error as? GoogleAPIError ?? .network("unknown")
         switch apiError {
         case .reauthorizationRequired, .notConnected:
@@ -272,7 +303,7 @@ final class GoogleController {
         if fresh.count == 1, let mail = fresh.first {
             coordinator?.post(ActivityItem(
                 source: .mail, priority: .p2, coalescingKey: "mail", title: mail.senderName, subtitle: mail.subject,
-                symbol: "envelope", reference: mail.id, createdAt: now, expiresAt: now.addingTimeInterval(6)))
+                symbol: "envelope", reference: mail.id, createdAt: now, expiresAt: now.addingTimeInterval(8)))
         } else if fresh.count > 1 {
             coordinator?.post(ActivityItem(
                 source: .mail, priority: .p2, coalescingKey: "mail", title: "\(fresh.count) nouveaux e-mails",
@@ -282,11 +313,12 @@ final class GoogleController {
 
     private func syncChat(api: GoogleAPI) async throws {
         let service = GoogleChatService(api: api)
-        let spaces = try await service.listSpaces()
+        let activities = try await service.listSpaces()
         guard let state else { return }
         state.chatStatus = .connected(account: state.googleAccount)
-        let ordered = spaces.sorted { ($0.lastActive ?? .distantPast) > ($1.lastActive ?? .distantPast) }
-        state.chatSpaces = ordered.map(\.space)
+        let ordered = activities.sorted { ($0.lastActive ?? .distantPast) > ($1.lastActive ?? .distantPast) }
+        let spaces = ordered.map(\.space)
+        if state.chatSpaces != spaces { state.chatSpaces = spaces }
         defer { chatPrimed = true }
         // Fetch messages only for spaces whose activity advanced (bounded to 3 per round).
         var changed: [GoogleChatService.SpaceActivity] = []
@@ -296,15 +328,23 @@ final class GoogleController {
             chatLastActive[activity.space.id] = active
         }
         guard chatPrimed else { return }
-        for activity in changed.prefix(3) {
+        let now = Date()
+        recentlySent = recentlySent.filter { now.timeIntervalSince($0.value) < 60 }
+        let incoming = changed.filter { recentlySent[$0.space.id] == nil }
+        if !incoming.isEmpty {
+            state.chatUnread.formUnion(incoming.map(\.space.id))
+            coordinator?.refreshLiveActivity()
+        }
+        for activity in incoming.prefix(3) {
             let messages = try await service.listMessages(spaceID: activity.space.id, limit: 10)
             storeMessages(messages, spaceID: activity.space.id)
             if let last = messages.last {
-                let now = Date()
+                let title = activity.space.isDirectMessage ? last.sender : activity.space.displayName
+                let text = activity.space.isDirectMessage ? last.text : "\(last.sender) : \(last.text)"
                 coordinator?.post(ActivityItem(
-                    source: .chat, priority: .p2, coalescingKey: "chat:\(activity.space.id)", title: last.sender,
-                    subtitle: Redactor.truncate(last.text, limit: 80), symbol: "bubble.left", reference: activity.space.id,
-                    createdAt: now, expiresAt: now.addingTimeInterval(6)))
+                    source: .chat, priority: .p2, coalescingKey: "chat:\(activity.space.id)", title: title,
+                    subtitle: Redactor.truncate(text, limit: 80), symbol: "bubble.left", reference: activity.space.id,
+                    createdAt: now, expiresAt: now.addingTimeInterval(8)))
             }
         }
     }
@@ -319,6 +359,20 @@ final class GoogleController {
     }
 
     // MARK: - Actions
+
+    /// Opening a message in Gmail marks it read: drop it now instead of waiting for the next sync.
+    func noteOpened(_ mail: MailSummary) {
+        let monitor = gmailMonitor
+        Task { await monitor?.remove(messageID: mail.id) }
+        dropFromInbox(mail)
+    }
+
+    private func dropFromInbox(_ mail: MailSummary) {
+        guard let state, state.mail.contains(where: { $0.id == mail.id }) else { return }
+        state.mail.removeAll { $0.id == mail.id }
+        state.unreadCount = state.unreadCount.map { max(0, $0 - 1) }
+        coordinator?.refreshLiveActivity()
+    }
 
     func markRead(_ mail: MailSummary) {
         modify(mail) { try await $0.markRead(id: mail.id) }
@@ -340,16 +394,22 @@ final class GoogleController {
             do {
                 try await operation(GmailService(api: GoogleAPI(auth: session, http: http)))
                 await self?.gmailMonitor?.remove(messageID: mail.id)
-                guard let state = self?.state else { return }
-                state.mail.removeAll { $0.id == mail.id }
-                state.unreadCount = state.unreadCount.map { max(0, $0 - 1) }
+                self?.dropFromInbox(mail)
             } catch {
                 self?.coordinator?.showError((error as? GoogleAPIError)?.message ?? "Action Gmail impossible.")
             }
         }
     }
 
+    /// The user opened the conversation in Espazio or in the browser.
+    func markChatSeen(spaceID: String) {
+        guard let state, state.chatUnread.contains(spaceID) else { return }
+        state.chatUnread.remove(spaceID)
+        coordinator?.refreshLiveActivity()
+    }
+
     func loadMessages(spaceID: String) {
+        markChatSeen(spaceID: spaceID)
         guard let session else { return }
         let http = self.http
         Task { [weak self] in
@@ -373,6 +433,7 @@ final class GoogleController {
             do {
                 let message = try await GoogleChatService(api: GoogleAPI(auth: session, http: http)).send(spaceID: spaceID, text: text)
                 guard let self, let state = self.state else { return }
+                self.recentlySent[spaceID] = Date()
                 self.storeMessages((state.chatMessages[spaceID] ?? []) + [message], spaceID: spaceID)
             } catch {
                 self?.coordinator?.showError((error as? GoogleAPIError)?.message ?? "Envoi impossible.")
@@ -382,7 +443,7 @@ final class GoogleController {
 
     func refreshNow() {
         guard anyEnabled else { return }
-        attempt = 0
+        attempts.removeAll()
         startLoop()
     }
 }
@@ -399,6 +460,7 @@ extension AppCoordinator {
 
     func openMail(_ mail: MailSummary) {
         NSWorkspace.shared.open(GmailService.webURL(threadID: mail.threadID))
+        google?.noteOpened(mail)
         display.collapseAll()
     }
 
@@ -406,6 +468,7 @@ extension AppCoordinator {
     func archiveMail(_ mail: MailSummary) { google?.archive(mail) }
 
     func openChatSpace(_ space: ChatSpace) {
+        google?.markChatSeen(spaceID: space.id)
         NSWorkspace.shared.open(GoogleChatService.webURL(spaceID: space.id))
         display.collapseAll()
     }

@@ -102,7 +102,11 @@ struct PeekView: View {
 
     @ViewBuilder
     private var leading: some View {
-        if item.source == .media, let artwork = state.artwork {
+        if item.coalescingKey == LiveActivityKey.mail || item.coalescingKey == LiveActivityKey.chat {
+            Image(systemName: item.symbol)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(EZColor.notchSecondary)
+        } else if item.source == .media, let artwork = state.artwork {
             Image(nsImage: artwork)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
@@ -116,9 +120,24 @@ struct PeekView: View {
         }
     }
 
-    @ViewBuilder
     private var trailing: some View {
-        if let progress = item.progress {
+        HStack(spacing: 6) {
+            Spacer(minLength: 0)
+            mainTrailing
+            if !item.requiresDecision {
+                NotchBadges(state: state, excluding: item.coalescingKey)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mainTrailing: some View {
+        if item.coalescingKey == LiveActivityKey.mail || item.coalescingKey == LiveActivityKey.chat {
+            // Discreet badge item: the count alone, the symbol is on the other side.
+            Text(item.subtitle ?? "")
+                .font(EZFont.captionEmphasis.monospacedDigit())
+                .foregroundStyle(EZColor.notchPrimary)
+        } else if let progress = item.progress {
             EZProgressBar(value: progress).frame(width: 56)
         } else if item.coalescingKey == LiveActivityKey.event, let event = state.events.first(where: { $0.id == item.reference }) {
             // Live countdown, ticking only while the peek is on screen.
@@ -147,5 +166,35 @@ struct PeekView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
         }
+    }
+}
+
+/// Small unread counters (e-mail, Chat) shown next to whatever the peek displays, so a playing
+/// track or a meeting countdown never hides them.
+struct NotchBadges: View {
+    let state: EspazioState
+    /// Live item currently shown in full: its own badge is not repeated.
+    let excluding: String
+
+    var body: some View {
+        let live = state.settings.live
+        let modules = state.settings.modules
+        let mail = modules.gmail && live.mailBadge && excluding != LiveActivityKey.mail ? (state.unreadCount ?? 0) : 0
+        let chat = modules.googleChat && live.chatBadge && excluding != LiveActivityKey.chat ? state.chatUnread.count : 0
+        HStack(spacing: 5) {
+            if mail > 0 { badge("envelope.fill", count: mail, label: "e-mails non lus") }
+            if chat > 0 { badge("bubble.left.fill", count: chat, label: "conversations Chat avec de nouveaux messages") }
+        }
+        .fixedSize()
+    }
+
+    private func badge(_ symbol: String, count: Int, label: String) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: symbol).font(.system(size: 8, weight: .semibold))
+            Text(BadgeCount.text(count)).font(.system(size: 9, weight: .semibold).monospacedDigit())
+        }
+        .foregroundStyle(EZColor.notchSecondary)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(count) \(label)")
     }
 }
