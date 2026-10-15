@@ -394,6 +394,20 @@ final class MeetingCountdownTests: XCTestCase {
         XCTAssertEqual(events.eventToShow(at: at(100))?.id, "day", "all-day once nothing timed is left")
     }
 
+    func testAgendaShowsTodayOnly() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
+        let evening = calendar.date(from: DateComponents(year: 2026, month: 10, day: 15, hour: 18))!
+        let tomorrow9 = calendar.date(from: DateComponents(year: 2026, month: 10, day: 16, hour: 9))!
+        let tomorrowMeeting = CalendarEvent(id: "t", title: "Daily", start: tomorrow9, end: tomorrow9.addingTimeInterval(900), source: .eventKit)
+        let tomorrowAllDay = CalendarEvent(
+            id: "d", title: "Férié", start: calendar.startOfDay(for: tomorrow9),
+            end: calendar.startOfDay(for: tomorrow9).addingTimeInterval(86_400), isAllDay: true, source: .eventKit)
+        XCTAssertNil([tomorrowMeeting, tomorrowAllDay].eventToShow(at: evening, calendar: calendar))
+        let late = CalendarEvent(id: "l", title: "Appel", start: evening.addingTimeInterval(3600), end: evening.addingTimeInterval(5400), source: .eventKit)
+        XCTAssertEqual([late, tomorrowMeeting].eventToShow(at: evening, calendar: calendar)?.id, "l")
+    }
+
     func testShortCountdownAndRing() {
         XCTAssertEqual(CountdownFormatter.short(until: at(12), now: at(0)), "12 min")
         XCTAssertEqual(CountdownFormatter.short(until: at(65), now: at(0)), "1 h 05")

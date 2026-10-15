@@ -67,11 +67,15 @@ public extension Array where Element == CalendarEvent {
     /// How long a started event stays the one shown before the next takes its place.
     static var startedEventGrace: TimeInterval { 15 * 60 }
 
-    /// Event to show in the agenda: the earliest timed event not started yet or started less than
-    /// 15 min ago (a long meeting does not hide the next one until it ends), else an all-day event.
-    func eventToShow(at date: Date) -> CalendarEvent? {
-        let timed = filter { !$0.isAllDay && $0.end > date && date.timeIntervalSince($0.start) < Self.startedEventGrace }
-        return timed.min { $0.start < $1.start } ?? first { $0.isAllDay && $0.end > date }
+    /// Event to show in the agenda, today only: the earliest timed event not started yet or
+    /// started less than 15 min ago (a long meeting does not hide the next one until it ends),
+    /// else an all-day event covering today. Tomorrow's events never show.
+    func eventToShow(at date: Date, calendar: Calendar = .current) -> CalendarEvent? {
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: date)) ?? date
+        let timed = filter {
+            !$0.isAllDay && $0.start < endOfDay && $0.end > date && date.timeIntervalSince($0.start) < Self.startedEventGrace
+        }
+        return timed.min { $0.start < $1.start } ?? first { $0.isAllDay && $0.start <= date && $0.end > date }
     }
 
     /// Next busy, timed event that has not started yet: the one the notch counts down to.
