@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Espazio</title>
+    <link>https://github.com/V1rtualAx3/Espazio</link>
+    <description>Mises à jour d’Espazio</description>
+    <language>fr</language>
+    <item>
+      <title>Espazio 1.0.0-beta.15</title>
+      <pubDate>Thu, 15 Oct 2026 11:51:06 GMT</pubDate>
+      <sparkle:version>98</sparkle:version>
+      <sparkle:shortVersionString>1.0.0-beta.15</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:fullReleaseNotesLink>https://github.com/V1rtualAx3/Espazio/releases/tag/v1.0.0-beta.15</sparkle:fullReleaseNotesLink>
+      <description>&lt;p&gt;Espazio 1.0.0-beta.15. &lt;a href="https://github.com/V1rtualAx3/Espazio/releases/tag/v1.0.0-beta.15"&gt;Notes de version&lt;/a&gt;&lt;/p&gt;</description>
+      <enclosure url="https://github.com/V1rtualAx3/Espazio/releases/download/v1.0.0-beta.15/Espazio-1.0.0-beta.15.dmg" length="3164884" type="application/x-apple-diskimage" sparkle:edSignature="9SUjF5vroOYQ17MUs/Qw53ZIKDX2BvFNbNxAPVhTuuNvSxqssMC0zDZKjBDGDLbeK5ie2XvQJ7w/lepudaB5AQ==" />
+    </item>
+  </channel>
+</rss>
