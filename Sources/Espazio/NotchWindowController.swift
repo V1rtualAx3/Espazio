@@ -212,6 +212,7 @@ final class NotchWindowController: NSObject, NSWindowDelegate {
             return
         }
         hoverTask?.cancel()
+        if presentation.state == .peek, coordinator?.handlePeekClick() == true { return }
         expand(tab: coordinator?.preferredTab(), makeKey: true)
     }
 

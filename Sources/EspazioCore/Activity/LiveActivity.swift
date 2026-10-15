@@ -43,7 +43,8 @@ public enum LiveActivityKey {
     public static let mail = "live-mail"
     public static let chat = "live-chat"
     public static let messages = "live-imessage"
-    public static let all = [media, event, agents, mail, chat, messages]
+    public static let timer = "live-timer"
+    public static let all = [media, event, agents, mail, chat, messages, timer]
 }
 
 /// Inputs available to the planner, already filtered by module switches.
@@ -55,10 +56,11 @@ public struct LiveActivityInputs: Sendable, Equatable {
     public var unreadMail: Int?
     public var unreadChats: Int
     public var unreadMessages: Int
+    public var timer: NotchTimer?
 
     public init(
         nowPlaying: NowPlaying? = nil, nextEvent: CalendarEvent? = nil, waitingAgents: Int = 0, activeAgents: Int = 0,
-        unreadMail: Int? = nil, unreadChats: Int = 0, unreadMessages: Int = 0
+        unreadMail: Int? = nil, unreadChats: Int = 0, unreadMessages: Int = 0, timer: NotchTimer? = nil
     ) {
         self.nowPlaying = nowPlaying
         self.nextEvent = nextEvent
@@ -67,11 +69,12 @@ public struct LiveActivityInputs: Sendable, Equatable {
         self.unreadMail = unreadMail
         self.unreadChats = unreadChats
         self.unreadMessages = unreadMessages
+        self.timer = timer
     }
 }
 
 /// Chooses the single continuous item to keep in the notch (spec §2: one prioritized piece of
-/// information). Priority: waiting agent > imminent meeting > media > active agents > unread mail >
+/// information). Priority: waiting agent > running timer > imminent meeting > media > active agents > unread mail >
 /// unread chats > unread iMessages. Unread counts also stay visible as small badges next to any other item
 /// (`NotchBadges`), so a playing track never hides them.
 /// Items are P4 without expiry: any transient notification takes precedence, then the continuous
@@ -81,6 +84,11 @@ public enum LiveActivityPlanner {
         if settings.agents, inputs.waitingAgents > 0 {
             return item(LiveActivityKey.agents, source: .agents, title: "En attente",
                         subtitle: inputs.waitingAgents > 1 ? "\(inputs.waitingAgents) agents" : "Agent IA", symbol: "hand.raised", now: now)
+        }
+        // A running timer was started on purpose: it stays visible (always on, not a setting).
+        if let timer = inputs.timer, timer.end > now {
+            return item(LiveActivityKey.timer, source: .system, title: timer.kind.label,
+                        subtitle: TimerFormatter.duration(timer.end.timeIntervalSince(timer.start)), symbol: timer.kind.symbol, now: now)
         }
         if settings.nextEvent, let event = inputs.nextEvent, !event.isAllDay {
             let lead = TimeInterval(settings.eventLeadMinutes * 60)
@@ -108,7 +116,7 @@ public enum LiveActivityPlanner {
                         symbol: "bubble.left", now: now)
         }
         if settings.messagesBadge, inputs.unreadMessages > 0 {
-            return item(LiveActivityKey.messages, source: .chat, title: "iMessage", subtitle: BadgeCount.text(inputs.unreadMessages),
+            return item(LiveActivityKey.messages, source: .system, title: "iMessage", subtitle: BadgeCount.text(inputs.unreadMessages),
                         symbol: "message", now: now)
         }
         return nil

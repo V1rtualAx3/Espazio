@@ -159,7 +159,14 @@ struct PeekView: View {
     private var mainTrailing: some View {
         if let progress = item.progress {
             EZProgressBar(value: progress).frame(width: 56)
-        } else if item.coalescingKey == LiveActivityKey.event, let event = state.events.first(where: { $0.id == item.reference }) {
+        } else if item.coalescingKey == LiveActivityKey.timer, let timer = state.timer {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(TimerFormatter.remaining(until: timer.end, now: context.date))
+                    .font(EZFont.captionEmphasis.monospacedDigit())
+                    .foregroundStyle(EZColor.notchPrimary)
+            }
+        } else if item.coalescingKey == LiveActivityKey.event || item.coalescingKey.hasPrefix("event:"),
+                  let event = state.events.first(where: { $0.id == item.reference }) {
             // Live countdown, ticking only while the peek is on screen.
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 Text(CountdownFormatter.string(until: event.start, end: event.end, now: context.date))

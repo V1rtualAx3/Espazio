@@ -278,3 +278,62 @@ final class PeekTextTests: XCTestCase {
         }
     }
 }
+
+final class NotchTimerTests: XCTestCase {
+    func testParsesTimerCommands() {
+        XCTAssertEqual(TimerParser.parse("25 min"), .init(kind: .timer, duration: 1500))
+        XCTAssertEqual(TimerParser.parse("10m"), .init(kind: .timer, duration: 600))
+        XCTAssertEqual(TimerParser.parse("1h30"), .init(kind: .timer, duration: 5400))
+        XCTAssertEqual(TimerParser.parse("90s"), .init(kind: .timer, duration: 90))
+        XCTAssertEqual(TimerParser.parse("Minuteur 5"), .init(kind: .timer, duration: 300))
+        XCTAssertEqual(TimerParser.parse("pomodoro"), .init(kind: .focus, duration: 1500))
+        XCTAssertEqual(TimerParser.parse("focus 50"), .init(kind: .focus, duration: 3000))
+        XCTAssertNil(TimerParser.parse("25"), "a bare number is a search, not a timer")
+        XCTAssertNil(TimerParser.parse("réunion 25 min"))
+        XCTAssertNil(TimerParser.parse("13h"), "beyond 12 h")
+        XCTAssertNil(TimerParser.parse("0 min"))
+    }
+
+    func testQuickActionOffersTimer() {
+        let results = QuickActionSearch.results(for: "pomodoro", catalog: [], now: Date())
+        XCTAssertEqual(results.first?.action, .startTimer(seconds: 1500, kind: .focus))
+    }
+
+    func testFormattingAndPomodoroCycle() {
+        let start = Date(timeIntervalSince1970: 0)
+        XCTAssertEqual(TimerFormatter.remaining(until: start.addingTimeInterval(1500), now: start), "25:00")
+        XCTAssertEqual(TimerFormatter.remaining(until: start.addingTimeInterval(3723), now: start), "1:02:03")
+        XCTAssertEqual(TimerFormatter.duration(5400), "1 h 30")
+        let focus = NotchTimer(kind: .focus, start: start, duration: 1500)
+        XCTAssertEqual(focus.next(at: focus.end)?.kind, .pause)
+        XCTAssertNil(NotchTimer(kind: .pause, start: start, duration: 300).next(at: start))
+        let planned = LiveActivityPlanner.select(.init(nowPlaying: nil, timer: focus), settings: .init(), now: start.addingTimeInterval(10))
+        XCTAssertEqual(planned?.coalescingKey, LiveActivityKey.timer)
+    }
+
+    func testClipboardHistoryKeepsFiveRecentDistinctTexts() {
+        var history = ClipboardHistory()
+        for text in ["a", "b", "c", "d", "e", "f", "b", "  "] { history.add(text) }
+        XCTAssertEqual(history.items, ["b", "f", "e", "d", "c"])
+        XCTAssertFalse(history.add(String(repeating: "x", count: ClipboardHistory.maxLength + 1)))
+    }
+
+    func testPresentingLetsOnlyDecisionsPeek() {
+        var policy = FocusPolicy()
+        policy.context.isPresenting = true
+        XCTAssertEqual(policy.peekThreshold, .p0)
+        policy.mode = .focused
+        XCTAssertEqual(policy.peekThreshold, .p0)
+    }
+
+    func testTurnDurationIsTracked() {
+        var store = AgentSessionStore()
+        let t = Date(timeIntervalSince1970: 0)
+        store.apply(.activity(sessionID: "s", provider: .claudeCode, message: nil), now: t)
+        store.apply(.activity(sessionID: "s", provider: .claudeCode, message: nil), now: t.addingTimeInterval(60))
+        store.apply(.turnCompleted(sessionID: "s", provider: .claudeCode, message: nil), now: t.addingTimeInterval(120))
+        XCTAssertEqual(store.sessions["s"]?.turnStartedAt, t, "turn started with its first event")
+        store.apply(.activity(sessionID: "s", provider: .claudeCode, message: nil), now: t.addingTimeInterval(300))
+        XCTAssertEqual(store.sessions["s"]?.turnStartedAt, t.addingTimeInterval(300), "a new turn restarts the clock")
+    }
+}

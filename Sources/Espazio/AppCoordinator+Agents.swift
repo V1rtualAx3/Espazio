@@ -98,6 +98,9 @@ extension AppCoordinator {
         return BridgeReply(id: request.id, status: .ok, body: ClaudeHookMapper.permissionOutput(for: response))
     }
 
+    /// A turn at least this long counts as a "long task" when it completes.
+    static let longTurn: TimeInterval = 30
+
     func apply(_ event: AgentEvent) {
         let now = Date()
         sessionStore.apply(event, now: now)
@@ -109,8 +112,13 @@ extension AppCoordinator {
             post(ActivityItem(source: .agents, priority: .p2, coalescingKey: "agent:\(id)", title: "\(provider.displayName) attend",
                               subtitle: name, symbol: "hand.raised", reference: id, createdAt: now, expiresAt: now.addingTimeInterval(5)))
         case let .turnCompleted(id, provider, _):
-            post(ActivityItem(source: .agents, priority: .p3, coalescingKey: "agent:\(id)", title: "Terminé", subtitle: "\(provider.displayName) · \(name)",
-                              symbol: "checkmark.circle", reference: id, createdAt: now, expiresAt: now.addingTimeInterval(4)))
+            // A long task finishing is worth a longer, more visible notice; a click returns to it.
+            let duration = sessionStore.sessions[id]?.turnStartedAt.map { now.timeIntervalSince($0) } ?? 0
+            let long = duration >= Self.longTurn
+            post(ActivityItem(
+                source: .agents, priority: long ? .p2 : .p3, coalescingKey: "agent:\(id)", title: "Terminé",
+                subtitle: long ? "\(name) · \(TimerFormatter.duration(duration))" : "\(provider.displayName) · \(name)",
+                symbol: "checkmark.circle", reference: id, createdAt: now, expiresAt: now.addingTimeInterval(long ? 10 : 4)))
         case let .turnFailed(id, provider, _):
             post(ActivityItem(source: .agents, priority: .p2, coalescingKey: "agent:\(id)", title: "Échec", subtitle: "\(provider.displayName) · \(name)",
                               symbol: "xmark.octagon", reference: id, createdAt: now, expiresAt: now.addingTimeInterval(6)))

@@ -119,6 +119,9 @@ public final class EspazioState {
     public var chatUnread: [ChatUnread] = []
     public var googleAccount: String?
 
+    /// Running countdown (timer or Pomodoro).
+    public var timer: NotchTimer?
+
     // iMessage (Dock badge of Messages)
     public var messagesUnread: Int?
     /// The Accessibility permission is missing for the iMessage badge.

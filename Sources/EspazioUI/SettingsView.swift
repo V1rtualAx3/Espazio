@@ -105,7 +105,7 @@ public struct SettingsView: View {
                     Text("Concentré (P0–P1)").tag(FocusMode.focused)
                     Text("Silencieux").tag(FocusMode.silent)
                 }
-                Toggle("Limiter les interruptions pendant une réunion ou en plein écran", isOn: binding(\.contextualFocus))
+                Toggle("Limiter les interruptions en réunion, en plein écran ou pendant une présentation (écran recopié)", isOn: binding(\.contextualFocus))
                 Text("L’état des modes Concentration de macOS n’est pas exposé par une API publique adaptée : Espazio utilise son propre mode, explicite.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -170,6 +170,13 @@ public struct SettingsView: View {
                 Text("Messages")
             } footer: {
                 Text("Apple ne propose pas d’API iMessage : Espazio lit seulement le nombre affiché sur l’icône Messages du Dock (permission Accessibilité), jamais le contenu des messages.")
+            }
+            Section {
+                Toggle("Historique du presse-papiers (5 derniers textes)", isOn: binding(\.modules.clipboard))
+            } header: {
+                Text("Presse-papiers")
+            } footer: {
+                Text("Dans les actions rapides (⌃⌥Espace). Conservé en mémoire uniquement, effacé à la fermeture ; les éléments marqués confidentiels par les gestionnaires de mots de passe sont ignorés.")
             }
         }
         .formStyle(.grouped)

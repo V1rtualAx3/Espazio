@@ -74,6 +74,8 @@ public struct ModuleSettings: Sendable, Codable, Equatable {
     public var googleTasks = false
     /// Unread count from the Messages app's Dock badge (requires the Accessibility permission).
     public var iMessage = false
+    /// Last five copied texts in Quick Actions (memory only, never written to disk).
+    public var clipboard = false
     public var claudeCode = true
     public var codex = true
     public var chatGPT = false
@@ -98,6 +100,7 @@ public struct ModuleSettings: Sendable, Codable, Equatable {
         googleCalendar = try c.decodeIfPresent(Bool.self, forKey: .googleCalendar) ?? d.googleCalendar
         googleTasks = try c.decodeIfPresent(Bool.self, forKey: .googleTasks) ?? d.googleTasks
         iMessage = try c.decodeIfPresent(Bool.self, forKey: .iMessage) ?? d.iMessage
+        clipboard = try c.decodeIfPresent(Bool.self, forKey: .clipboard) ?? d.clipboard
         claudeCode = try c.decodeIfPresent(Bool.self, forKey: .claudeCode) ?? d.claudeCode
         codex = try c.decodeIfPresent(Bool.self, forKey: .codex) ?? d.codex
         chatGPT = try c.decodeIfPresent(Bool.self, forKey: .chatGPT) ?? d.chatGPT
@@ -113,7 +116,7 @@ public struct ModuleSettings: Sendable, Codable, Equatable {
         if !keyboard { muted.insert(.keyboard) }
         if !bluetooth { muted.insert(.bluetooth) }
         if !calendar && !googleCalendar { muted.insert(.calendar) }
-        if !reminders { muted.insert(.reminders) }
+        if !reminders && !googleTasks { muted.insert(.reminders) }
         if !gmail { muted.insert(.mail) }
         if !googleChat { muted.insert(.chat) }
         return muted

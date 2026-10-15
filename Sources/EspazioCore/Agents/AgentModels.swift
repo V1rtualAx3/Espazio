@@ -46,6 +46,8 @@ public struct AgentSession: Sendable, Equatable, Identifiable, Codable {
     public var title: String?
     public var state: AgentSessionState
     public var lastActivity: Date
+    /// When the current turn started (the session became active again); `nil` when idle.
+    public var turnStartedAt: Date?
     public var lastMessage: String?
     public var control: AgentControlLevel
     /// Hint used to bring the right terminal / client to front (e.g. `TERM_PROGRAM`).
@@ -126,7 +128,14 @@ public struct AgentSessionStore: Sendable, Equatable {
         let isKnown = sessions[id] != nil
         var session = sessions[id] ?? AgentSession(
             id: id, provider: event.provider, state: .active, lastActivity: now, control: .observeOnly)
+        let wasBusy = isKnown && (session.state == .active || session.state == .waiting)
         session.lastActivity = now
+        switch event {
+        case .sessionStarted, .activity, .waiting:
+            if !wasBusy || session.turnStartedAt == nil { session.turnStartedAt = now }
+        case .turnCompleted, .turnFailed, .sessionEnded:
+            break
+        }
         switch event {
         case let .sessionStarted(_, _, projectPath, control, clientHint):
             session.projectPath = projectPath ?? session.projectPath

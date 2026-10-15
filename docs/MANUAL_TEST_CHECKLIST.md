@@ -65,6 +65,11 @@ Machine : ________ · macOS : ________ · Écrans : ________ · Date : ________
 - [ ] G7b Conversation Chat en sourdine → aucun badge, aucun aperçu ; « Pour vous » → listée sans aperçu.
 - [ ] G9 Google Tasks : tâche due aujourd’hui listée avec les rappels ; la terminer depuis la notch demande l’autorisation `tasks` une fois, puis la retire.
 - [ ] S9 iMessage : permission Accessibilité demandée ; message reçu → badge et aperçu ; lu dans Messages → badge retiré.
+- [ ] T1 « 25 min » / « pomodoro » dans ⌃⌥Espace → compte à rebours dans la notch, son et aperçu à la fin, pause enchaînée pour Pomodoro, « Arrêter » disponible.
+- [ ] T2 Réunion avec lien visio : 5 min avant, aperçu avec compte à rebours ; clic → la réunion s'ouvre.
+- [ ] T3 Tâche Claude Code de plus de 30 s terminée → « Terminé · durée » ; clic → retour à l'app de la session.
+- [ ] T4 Écran recopié (projecteur / AirPlay) → seules les décisions d'agents apparaissent.
+- [ ] T5 Presse-papiers activé : 5 derniers textes dans ⌃⌥Espace ; un mot de passe copié depuis un gestionnaire n'apparaît pas.
 - [ ] G8 E-mail ouvert depuis la notch → retiré de la liste et du badge immédiatement.
 
 ## M — Mesures (voir PERFORMANCE.md)

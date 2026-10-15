@@ -10,6 +10,10 @@ public struct QuickActionItem: Sendable, Equatable, Identifiable {
         case openMail(id: String)
         case openChat(spaceID: String)
         case openMessages
+        case startTimer(seconds: Int, kind: NotchTimer.Kind)
+        case stopTimer
+        /// Puts a clipboard history entry back on the clipboard.
+        case copyText(String)
         case completeReminder(id: String)
         case toggleSilentMode
     }
@@ -51,6 +55,14 @@ public enum QuickActionSearch {
             output.append(QuickActionItem(
                 id: "create-reminder", title: "Nouveau rappel : \(reminder.title)", subtitle: subtitle,
                 symbol: "plus.circle", action: .createReminder(title: reminder.title, due: reminder.due, hasDueTime: reminder.hasDueTime)))
+        }
+        if let timer = TimerParser.parse(trimmed) {
+            let title = timer.kind == .focus
+                ? "Pomodoro : \(TimerFormatter.duration(timer.duration)) puis \(TimerFormatter.duration(NotchTimer.pauseDuration)) de pause"
+                : "Minuteur : \(TimerFormatter.duration(timer.duration))"
+            output.append(QuickActionItem(
+                id: "start-timer", title: title, subtitle: "Compte à rebours dans la notch", symbol: timer.kind.symbol,
+                action: .startTimer(seconds: Int(timer.duration), kind: timer.kind)))
         }
         guard !trimmed.isEmpty else { return Array((output + catalog).prefix(limit)) }
         let needle = normalize(trimmed)

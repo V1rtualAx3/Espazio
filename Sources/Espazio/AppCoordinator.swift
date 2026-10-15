@@ -33,6 +33,10 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
     let keyboard = KeyboardMonitor()
     private var bluetooth: BluetoothMonitor?
     private var messagesBadge: DockBadgeMonitor?
+    private var countdownTimer: Timer?
+    private var clipboardMonitor: ClipboardMonitor?
+    private var clipboardHistory = ClipboardHistory()
+    private var screenObserver: NSObjectProtocol?
     let eventKit = EventKitProvider()
     var eventKitEvents: [CalendarEvent] = []
     var googleEvents: [CalendarEvent] = []
@@ -108,6 +112,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         keyboard.stop()
         bluetooth?.stop()
         messagesBadge?.stop()
+        clipboardMonitor?.stop()
+        countdownTimer?.invalidate()
         // A normal quit is not a crash during the Bluetooth start-up.
         UserDefaults.standard.removeObject(forKey: Self.bluetoothStartingKey)
         media.stopAll()
@@ -167,6 +173,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         if old.keyboard != new.keyboard { new.keyboard ? keyboard.start() : keyboard.stop() }
         if old.bluetooth != new.bluetooth { configureBluetooth(new.bluetooth) }
         if old.iMessage != new.iMessage { configureMessages(new.iMessage) }
+        if old.clipboard != new.clipboard { configureClipboard(new.clipboard) }
         if old.calendar != new.calendar || old.reminders != new.reminders {
             eventKit.eventsEnabled = new.calendar
             eventKit.remindersEnabled = new.reminders
@@ -190,11 +197,12 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         publish()
     }
 
-    func updateFocusContext(isFullScreen: Bool? = nil, isInMeeting: Bool? = nil) {
+    func updateFocusContext(isFullScreen: Bool? = nil, isInMeeting: Bool? = nil, isPresenting: Bool? = nil) {
         guard state.settings.contextualFocus else { return }
         var context = router.policy.context
         if let isFullScreen { context.isFullScreen = isFullScreen }
         if let isInMeeting { context.isInMeeting = isInMeeting }
+        if let isPresenting { context.isPresenting = isPresenting }
         guard context != router.policy.context else { return }
         router.policy.context = context
         publish()
@@ -265,6 +273,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         state.capsLock = modules.keyboard ? .value(keyboard.capsLockOn) : .unavailable(reason: "Module désactivé")
         configureBluetooth(modules.bluetooth)
         configureMessages(modules.iMessage)
+        configureClipboard(modules.clipboard)
+        observePresentation()
 
         media.onChange = { [weak self] playing, name in
             self?.state.mediaPlayerName = name
@@ -332,7 +342,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
             if let previous, count > previous {
                 let now = Date()
                 post(ActivityItem(
-                    source: .chat, priority: .p2, coalescingKey: "imessage", title: "iMessage",
+                    source: .system, priority: .p2, coalescingKey: "imessage", title: "iMessage",
                     subtitle: count > 1 ? "\(count) non lus" : "Nouveau message", symbol: "message",
                     createdAt: now, expiresAt: now.addingTimeInterval(6)))
             }
@@ -415,7 +425,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
             activeAgents: agentSessions.filter { $0.state == .active }.count,
             unreadMail: modules.gmail ? state.unreadCount : nil,
             unreadChats: modules.googleChat ? state.chatUnread.count : 0,
-            unreadMessages: modules.iMessage ? (state.messagesUnread ?? 0) : 0)
+            unreadMessages: modules.iMessage ? (state.messagesUnread ?? 0) : 0,
+            timer: state.timer)
         let settings = state.settings.live
         let selected = LiveActivityPlanner.select(inputs, settings: settings, now: now)
         var changed = false
@@ -548,9 +559,11 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
     private func notifyEvent(_ event: CalendarEvent, now: Date) {
         if notifiedSchedule.count > 500 { notifiedSchedule.removeAll() }
         notifiedSchedule.insert("event:\(event.id)")
+        // Live countdown in the peek; a click joins the meeting (or opens the event).
         post(ActivityItem(
             source: .calendar, priority: .p1, coalescingKey: "event:\(event.id)", title: event.title,
-            subtitle: CountdownFormatter.string(until: event.start, now: now), symbol: "calendar", reference: event.id,
+            subtitle: CountdownFormatter.string(until: event.start, now: now), symbol: event.meetingURL == nil ? "calendar" : "video.fill",
+            reference: event.id,
             createdAt: now, expiresAt: event.start.addingTimeInterval(60)))
     }
 
@@ -587,6 +600,17 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
 
     func quickActionCatalog() -> [QuickActionItem] {
         var items: [QuickActionItem] = []
+        if let timer = state.timer {
+            items.append(QuickActionItem(
+                id: "stop-timer", title: "Arrêter : \(timer.kind.label)", subtitle: "Fin à " + timer.end.formatted(date: .omitted, time: .shortened),
+                symbol: "stop.circle", action: .stopTimer, keywords: ["minuteur", "timer", "pomodoro", "stop"]))
+        }
+        for (index, text) in clipboardHistory.items.enumerated() {
+            let line = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? text
+            items.append(QuickActionItem(
+                id: "clip:\(index)", title: Redactor.truncate(line, limit: 80), subtitle: "Presse-papiers · copier à nouveau",
+                symbol: "doc.on.clipboard", action: .copyText(text), keywords: ["presse-papiers", "copie", "clipboard"]))
+        }
         if let event = state.nextEvent(now: Date()) {
             items.append(QuickActionItem(
                 id: "next-event", title: event.title, subtitle: "Prochain événement · " + CountdownFormatter.string(until: event.start, end: event.end, now: Date()),
@@ -639,7 +663,119 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
             completeReminder(id: id)
         case .toggleSilentMode:
             setFocusMode(state.settings.focusMode == .silent ? .normal : .silent)
+        case let .startTimer(seconds, kind):
+            startTimer(seconds: seconds, kind: kind)
+        case .stopTimer:
+            stopTimer()
+        case let .copyText(text):
+            clipboardMonitor?.copy(text)
         }
+    }
+
+    // MARK: - Timer and Pomodoro
+
+    func startTimer(seconds: Int, kind: NotchTimer.Kind) {
+        state.timer = NotchTimer(kind: kind, start: Date(), duration: TimeInterval(seconds))
+        scheduleCountdown()
+        refreshLiveActivity()
+    }
+
+    func stopTimer() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        state.timer = nil
+        refreshLiveActivity()
+    }
+
+    private func scheduleCountdown() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        guard let running = state.timer else { return }
+        let timer = Timer(fire: running.end, interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.countdownFinished() }
+        }
+        timer.tolerance = 0.2
+        RunLoop.main.add(timer, forMode: .common)
+        countdownTimer = timer
+    }
+
+    private func countdownFinished() {
+        guard let finished = state.timer else { return }
+        let now = Date()
+        NSSound(named: "Glass")?.play()
+        state.timer = finished.next(at: now)
+        let notice: (title: String, subtitle: String, symbol: String)
+        switch finished.kind {
+        case .timer: notice = ("Minuteur", "Terminé", "timer")
+        case .focus: notice = ("Pomodoro", "Pause \(TimerFormatter.duration(NotchTimer.pauseDuration))", "cup.and.saucer")
+        case .pause: notice = ("Pomodoro", "Terminé", "checkmark.circle")
+        }
+        post(ActivityItem(
+            source: .system, priority: .p1, coalescingKey: "timer-done", title: notice.title, subtitle: notice.subtitle, symbol: notice.symbol,
+            createdAt: now, expiresAt: now.addingTimeInterval(6)))
+        scheduleCountdown()
+        refreshLiveActivity()
+    }
+
+    // MARK: - Clipboard history (opt-in, memory only)
+
+    private func configureClipboard(_ enabled: Bool) {
+        guard enabled else {
+            clipboardMonitor?.stop()
+            clipboardMonitor = nil
+            clipboardHistory.clear()
+            return
+        }
+        let monitor = clipboardMonitor ?? ClipboardMonitor()
+        monitor.onCopy = { [weak self] text in self?.clipboardHistory.add(text) }
+        monitor.start()
+        clipboardMonitor = monitor
+    }
+
+    // MARK: - Presenting (mirrored display)
+
+    /// A mirrored display (projector, AirPlay mirroring) means an audience sees the notch: only
+    /// agent decisions may then appear. Screen sharing in video-call apps has no public signal.
+    private func observePresentation() {
+        guard screenObserver == nil else { return }
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updatePresentingState() }
+        }
+        updatePresentingState()
+    }
+
+    private func updatePresentingState() {
+        var displays = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(UInt32(displays.count), &displays, &count) == .success else { return }
+        let mirrored = displays.prefix(Int(count)).contains { CGDisplayIsInMirrorSet($0) != 0 }
+        updateFocusContext(isPresenting: mirrored)
+    }
+
+    // MARK: - Peek click
+
+    /// A click on a peek acts on it when there is an obvious target; otherwise the notch expands.
+    func handlePeekClick() -> Bool {
+        guard let item = state.peek else { return false }
+        let key = item.coalescingKey
+        if key.hasPrefix("event:"), let id = item.reference, let event = state.events.first(where: { $0.id == id }) {
+            if let url = event.meetingURL { joinMeeting(url) } else { openEvent(event) }
+            dismissActivity(key: key)
+            return true
+        }
+        if key.hasPrefix("agent"), let id = item.reference, let session = state.sessions.first(where: { $0.id == id }),
+           !state.pendingRequests.contains(where: { $0.sessionID == id }) {
+            openSession(session)
+            dismissActivity(key: key)
+            return true
+        }
+        if key == "imessage" || key == LiveActivityKey.messages {
+            openMessages()
+            return true
+        }
+        return false
     }
 
     // MARK: - EspazioActions (media, productivity, app)

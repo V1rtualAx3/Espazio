@@ -17,10 +17,13 @@ public struct FocusContext: Sendable, Equatable {
     public var isInMeeting: Bool
     /// The frontmost window on the notch screen is full screen.
     public var isFullScreen: Bool
+    /// The screen is mirrored (projector, AirPlay mirroring): the audience sees the notch.
+    public var isPresenting: Bool
 
-    public init(isInMeeting: Bool = false, isFullScreen: Bool = false) {
+    public init(isInMeeting: Bool = false, isFullScreen: Bool = false, isPresenting: Bool = false) {
         self.isInMeeting = isInMeeting
         self.isFullScreen = isFullScreen
+        self.isPresenting = isPresenting
     }
 }
 
@@ -44,8 +47,10 @@ public struct FocusPolicy: Sendable, Equatable {
         case .silent:
             return nil
         case .focused:
-            return .p1
+            return context.isPresenting ? .p0 : .p1
         case .normal:
+            // Presenting: only agent decisions, which cannot wait.
+            if context.isPresenting { return .p0 }
             if context.isInMeeting || context.isFullScreen { return .p1 }
             return .p4
         }
