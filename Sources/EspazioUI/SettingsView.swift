@@ -131,6 +131,7 @@ public struct SettingsView: View {
                 if state.updatesConfigured {
                     Toggle("Rechercher automatiquement les mises à jour", isOn: Binding(
                         get: { state.automaticUpdateChecks }, set: { actions.setAutomaticUpdateChecks($0) }))
+                    Toggle("Recevoir les versions bêta", isOn: binding(\.betaUpdates))
                     Button("Rechercher maintenant") { actions.checkForUpdates() }
                 } else {
                     Text("Mises à jour automatiques non configurées pour ce build (voir docs/UPDATES.md).")

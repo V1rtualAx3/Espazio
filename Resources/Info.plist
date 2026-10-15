@@ -45,7 +45,7 @@
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Espazio affiche et pilote la lecture de Spotify et de Musique (lecture, pause, piste suivante) à votre demande.</string>
 	<key>SUFeedURL</key>
-	<string>https://github.com/V1rtualAx3/Espazio/releases/latest/download/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/V1rtualAx3/Espazio/appcast/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string></string>
 	<key>SUEnableSystemProfiling</key>

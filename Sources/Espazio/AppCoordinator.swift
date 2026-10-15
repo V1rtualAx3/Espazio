@@ -91,6 +91,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
 
     func start() {
         state.launchAtLogin = LaunchAtLogin.isEnabled
+        updates.includesBetas = state.settings.betaUpdates
         state.updatesConfigured = updates.isConfigured
         state.automaticUpdateChecks = updates.automaticallyChecks
         statusItem = StatusItemController(coordinator: self)
@@ -151,6 +152,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         state.settings = settings
         UserDefaults.standard.set(settings.encoded(), forKey: Self.settingsKey)
         applyPolicy()
+        updates.includesBetas = settings.betaUpdates
         if settings.displayMode != old.displayMode || settings.hideOverFullScreen != old.hideOverFullScreen {
             display.rebuild()
         }

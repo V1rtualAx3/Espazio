@@ -149,6 +149,8 @@ public struct EspazioSettings: Sendable, Codable, Equatable {
     public var quickActionsShortcut: KeyShortcut = .defaultQuickActions
     public var toggleNotchShortcut: KeyShortcut = .defaultToggleNotch
     public var diagnosticsEnabled = false
+    /// Receive beta versions through Sparkle (stable versions only when off).
+    public var betaUpdates = false
     /// Google OAuth client identifier supplied by the user (not a secret).
     public var googleClientID: String = ""
     /// The welcome window has been shown (or skipped) once.
@@ -173,6 +175,7 @@ public struct EspazioSettings: Sendable, Codable, Equatable {
         quickActionsShortcut = (try? c.decodeIfPresent(KeyShortcut.self, forKey: .quickActionsShortcut)) ?? d.quickActionsShortcut
         toggleNotchShortcut = (try? c.decodeIfPresent(KeyShortcut.self, forKey: .toggleNotchShortcut)) ?? d.toggleNotchShortcut
         diagnosticsEnabled = try c.decodeIfPresent(Bool.self, forKey: .diagnosticsEnabled) ?? d.diagnosticsEnabled
+        betaUpdates = try c.decodeIfPresent(Bool.self, forKey: .betaUpdates) ?? d.betaUpdates
         googleClientID = try c.decodeIfPresent(String.self, forKey: .googleClientID) ?? d.googleClientID
         hasCompletedOnboarding = try c.decodeIfPresent(Bool.self, forKey: .hasCompletedOnboarding) ?? d.hasCompletedOnboarding
         normalize()

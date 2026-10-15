@@ -50,9 +50,11 @@ module.exports = {
       prepareCmd: "scripts/release-build.sh ${nextRelease.version}",
       // Stable releases only: DMG and PKG also published to GitHub Packages (ghcr.io).
       ...(isMain ? { publishCmd: "scripts/publish-package.sh ${nextRelease.version}" } : {}),
-      // Betas are superseded by the stable release; on work branches, only drop the legacy
-      // branch-named pre-releases.
-      successCmd: isMain ? "scripts/cleanup-prereleases.sh --all" : "scripts/cleanup-prereleases.sh --legacy",
+      // Once the release and its DMG exist: add it to the Sparkle appcast, then clean up. Betas are
+      // superseded by the stable release; on work branches, only drop the legacy branch-named
+      // pre-releases.
+      successCmd: "scripts/update-appcast.sh ${nextRelease.version} && "
+        + (isMain ? "scripts/cleanup-prereleases.sh --all" : "scripts/cleanup-prereleases.sh --legacy"),
     }],
     ...(isMain ? [["@semantic-release/git", {
       assets: ["CHANGELOG.md"],
