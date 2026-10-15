@@ -79,12 +79,17 @@ certificat redemande l’accès une fois.
 
 **Rulesets › New branch ruleset** — cible : branche par défaut (`main`)
 - *Restrict deletions* et *Block force pushes*.
-- *Require a pull request before merging* (0 approbation requise si vous êtes seul ; 1 sinon), avec
-  *Require conversation resolution*.
+- *Require a pull request before merging* : **1 approbation**, *Require review from Code Owners*,
+  *Dismiss stale pull request approvals when new commits are pushed*, *Require conversation resolution*.
+  [`.github/CODEOWNERS`](../.github/CODEOWNERS) désigne `@V1rtualAx3` comme seul propriétaire : aucune
+  PR ne peut être fusionnée sans son approbation. GitHub n’autorise pas à approuver sa propre PR ; pour
+  ses propres PR, le propriétaire fusionne grâce au contournement *Repository admin* ci-dessous (dans
+  l’écran de fusion : *Merge without waiting for requirements to be met*).
+- Ne donner à personne d’autre le rôle *Write*, *Maintain* ou *Admin* : seuls ces rôles peuvent fusionner.
 - *Require status checks to pass* : `Commits (Conventional Commits)`, `Core logic (Linux)`,
   `App (macOS)`. Les runs `pull_request` d’une branche du dépôt sont sautés : les statuts viennent du run
   `push` sur le même commit.
-- *Bypass list* : vous-même (*Repository admin*) et, pour que semantic-release puisse pousser le commit
+- *Bypass list* : *Repository admin* (vous seul) et, pour que semantic-release puisse pousser le commit
   `CHANGELOG.md` sur `main`, l’app **GitHub Actions** si elle est proposée ; sinon, un jeton à portée
   fine (*Contents: read and write* sur ce dépôt) dans un secret `RELEASE_TOKEN` utilisé par le job release.
 
