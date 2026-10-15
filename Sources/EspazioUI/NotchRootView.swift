@@ -119,7 +119,20 @@ struct PeekView: View {
             } else if let only = counters.first {
                 CounterIcon(symbol: only.symbol)
             }
-        } else if item.source == .media, let artwork = state.artwork {
+        } else {
+            // Unread badges sit beside the icon, leaving the right wing to the text.
+            HStack(spacing: 8) {
+                icon
+                if !item.requiresDecision {
+                    NotchBadges(state: state, excluding: item.coalescingKey)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var icon: some View {
+        if item.source == .media, let artwork = state.artwork {
             Image(nsImage: artwork)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
@@ -145,13 +158,7 @@ struct PeekView: View {
                 CounterCount(count: only.count)
             }
         } else {
-            HStack(spacing: 6) {
-                Spacer(minLength: 0)
-                mainTrailing
-                if !item.requiresDecision {
-                    NotchBadges(state: state, excluding: item.coalescingKey)
-                }
-            }
+            mainTrailing
         }
     }
 
@@ -258,8 +265,8 @@ private struct CounterLabel: View {
     }
 }
 
-/// Small unread counters (e-mail, Chat) shown next to whatever the peek displays, so a playing
-/// track or a meeting countdown never hides them.
+/// Small unread counters (e-mail, Chat) shown beside the icon of whatever the peek displays, so a
+/// playing track or a meeting countdown never hides them.
 struct NotchBadges: View {
     let state: EspazioState
     /// Live item currently shown in full: its own badge is not repeated.
