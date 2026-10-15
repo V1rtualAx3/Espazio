@@ -126,6 +126,8 @@ public struct SettingsView: View {
                 }
             }
             Section("Mises à jour") {
+                LabeledContent("Version", value: AppVersion.current.display)
+                    .textSelection(.enabled)
                 if state.updatesConfigured {
                     Toggle("Rechercher automatiquement les mises à jour", isOn: Binding(
                         get: { state.automaticUpdateChecks }, set: { actions.setAutomaticUpdateChecks($0) }))
@@ -300,5 +302,25 @@ public struct SettingsView: View {
         case let .error(message, _): return "Erreur : \(message)"
         case .needsReauthorization: return "Reconnexion nécessaire"
         }
+    }
+}
+
+/// Version of the running app: the full release version stamped by CI (`EspazioVersion`, e.g.
+/// 1.0.0-beta.11), else the marketing version, plus the build number.
+public struct AppVersion {
+    public let version: String
+    public let build: String?
+
+    public static var current: AppVersion {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let full = info["EspazioVersion"] as? String
+        let short = info["CFBundleShortVersionString"] as? String
+        let build = info["CFBundleVersion"] as? String
+        return AppVersion(version: full ?? short ?? "développement", build: build)
+    }
+
+    public var display: String {
+        guard let build, !build.isEmpty, build != version else { return version }
+        return "\(version) (build \(build))"
     }
 }

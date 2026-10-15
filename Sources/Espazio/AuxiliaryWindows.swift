@@ -172,6 +172,9 @@ final class StatusItemController: NSObject {
             menu.addItem(withTitle: "Rechercher des mises à jour…", action: #selector(checkUpdates), keyEquivalent: "").target = self
         }
         menu.addItem(.separator())
+        let version = NSMenuItem(title: "Espazio \(AppVersion.current.display)", action: nil, keyEquivalent: "")
+        version.isEnabled = false
+        menu.addItem(version)
         menu.addItem(withTitle: "Quitter Espazio", action: #selector(quit), keyEquivalent: "q").target = self
         menu.delegate = self
         item.menu = menu
