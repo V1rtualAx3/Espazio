@@ -116,6 +116,13 @@ final class UpdateChannels: NSObject, SPUUpdaterDelegate, @unchecked Sendable {
     }
 
     func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
+        let error = error as NSError
+        // Sparkle ends a check that finds nothing newer with this "error" (SUNoUpdateError).
+        if error.domain == "SUSparkleErrorDomain", error.code == 1001 {
+            Self.log.info("no update")
+            onStatus?("Espazio est à jour (\(Self.checkedAt())).")
+            return
+        }
         Self.log.error("update aborted: \(String(describing: error), privacy: .public)")
         onStatus?("Échec de la mise à jour : \(error.localizedDescription)")
     }
