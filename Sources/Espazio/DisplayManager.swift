@@ -11,6 +11,7 @@ final class DisplayManager {
     private weak var coordinator: AppCoordinator?
     private let state: EspazioState
     private var observers: [NSObjectProtocol] = []
+    private var recheckTask: Task<Void, Never>?
     private var rebuildTask: Task<Void, Never>?
 
     init(state: EspazioState, coordinator: AppCoordinator) {
@@ -26,7 +27,7 @@ final class DisplayManager {
         let workspace = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
             observers.append(workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.contextChanged() }
+                MainActor.assumeIsolated { self?.contextChangedSoon() }
             })
         }
         rebuild()
@@ -96,9 +97,23 @@ final class DisplayManager {
 
     // MARK: - Context (full screen, active screen)
 
+    /// Checks now and again once the space transition and the window resize are over: right after
+    /// the notification, a window going full screen still has its previous size.
+    private func contextChangedSoon() {
+        contextChanged()
+        recheckTask?.cancel()
+        recheckTask = Task { [weak self] in
+            for delay in [0.6, 1.5] {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                guard !Task.isCancelled else { return }
+                self?.contextChanged()
+            }
+        }
+    }
+
     private func contextChanged() {
         let fullScreenIDs = FullScreenDetector.fullScreenDisplayIDs(Array(controllers.values.map(\.screen)))
-        let hide = state.settings.hideInFullScreen
+        let hide = state.settings.hideOverFullScreen
         for controller in controllers.values {
             controller.setSuppressed(hide && fullScreenIDs.contains(controller.screenID))
         }
@@ -151,10 +166,22 @@ enum FullScreenDetector {
             else { continue }
             // CG coordinates are top-left based; convert to AppKit global coordinates.
             let appKitRect = CGRect(x: bounds.minX, y: primaryHeight - bounds.maxY, width: bounds.width, height: bounds.height)
-            for screen in screens where appKitRect.equalTo(screen.frame) {
+            for screen in screens where covers(appKitRect, screen) {
                 result.insert(screen.id)
             }
         }
         return result
+    }
+
+    /// A full-screen window covers the whole display, or — on a display with a camera housing —
+    /// everything below it (macOS keeps full-screen content out of the notch band by default).
+    static func covers(_ rect: CGRect, _ screen: ScreenDescriptor) -> Bool {
+        let frame = screen.frame
+        let tolerance: CGFloat = 1
+        guard abs(rect.minX - frame.minX) <= tolerance, abs(rect.width - frame.width) <= tolerance,
+              abs(rect.minY - frame.minY) <= tolerance
+        else { return false }
+        let belowNotch = frame.height - max(screen.safeAreaTop, 0)
+        return rect.height >= belowNotch - tolerance
     }
 }

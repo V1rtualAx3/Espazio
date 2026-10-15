@@ -358,3 +358,10 @@ final class ContinuousDisplayPolicyTests: XCTestCase {
         XCTAssertFalse(policy.mayPeek(track))
     }
 }
+
+final class FullScreenSettingTests: XCTestCase {
+    func testHidingOverFullScreenIsOnEvenForFormerOptOut() {
+        XCTAssertTrue(EspazioSettings.decode(Data(#"{"hideInFullScreen":false}"#.utf8)).hideOverFullScreen)
+        XCTAssertFalse(EspazioSettings.decode(Data(#"{"hideOverFullScreen":false}"#.utf8)).hideOverFullScreen)
+    }
+}

@@ -68,7 +68,7 @@ public struct SettingsView: View {
                     Text("Tous les écrans").tag(DisplayMode.allScreens)
                     Text("Écran actif").tag(DisplayMode.activeScreen)
                 }
-                Toggle("Masquer au-dessus des apps en plein écran", isOn: binding(\.hideInFullScreen))
+                Toggle("Masquer au-dessus des apps en plein écran", isOn: binding(\.hideOverFullScreen))
                 Toggle("Ouvrir au survol", isOn: binding(\.expandOnHover))
                 if state.settings.expandOnHover {
                     Slider(value: binding(\.hoverDelay), in: 0...1, step: 0.05) {

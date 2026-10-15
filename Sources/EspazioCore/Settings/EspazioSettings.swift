@@ -130,7 +130,9 @@ public struct EspazioSettings: Sendable, Codable, Equatable {
 
     public var version = EspazioSettings.currentVersion
     public var displayMode: DisplayMode = .mainOnly
-    public var hideInFullScreen = false
+    /// Hide the notch over full-screen apps (agent decisions still show). Stored under a new key
+    /// so it is on for everyone, including users who had the former opt-in setting off.
+    public var hideOverFullScreen = true
     public var expandOnHover = true
     /// Seconds the pointer must rest on the notch before expanding.
     public var hoverDelay: Double = 0.2
@@ -159,7 +161,7 @@ public struct EspazioSettings: Sendable, Codable, Equatable {
         let d = EspazioSettings()
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? d.version
         displayMode = (try? c.decodeIfPresent(DisplayMode.self, forKey: .displayMode)) ?? d.displayMode
-        hideInFullScreen = try c.decodeIfPresent(Bool.self, forKey: .hideInFullScreen) ?? d.hideInFullScreen
+        hideOverFullScreen = try c.decodeIfPresent(Bool.self, forKey: .hideOverFullScreen) ?? d.hideOverFullScreen
         expandOnHover = try c.decodeIfPresent(Bool.self, forKey: .expandOnHover) ?? d.expandOnHover
         hoverDelay = try c.decodeIfPresent(Double.self, forKey: .hoverDelay) ?? d.hoverDelay
         focusMode = (try? c.decodeIfPresent(FocusMode.self, forKey: .focusMode)) ?? d.focusMode

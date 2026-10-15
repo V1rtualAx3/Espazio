@@ -151,7 +151,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         state.settings = settings
         UserDefaults.standard.set(settings.encoded(), forKey: Self.settingsKey)
         applyPolicy()
-        if settings.displayMode != old.displayMode || settings.hideInFullScreen != old.hideInFullScreen {
+        if settings.displayMode != old.displayMode || settings.hideOverFullScreen != old.hideOverFullScreen {
             display.rebuild()
         }
         if settings.modules != old.modules {
