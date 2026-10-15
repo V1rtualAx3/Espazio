@@ -90,6 +90,9 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(LiveActivityPlanner.select(.init(nowPlaying: playing, nextEvent: later), settings: settings, now: now)?.coalescingKey,
                        LiveActivityKey.media, "meeting outside the lead window")
         XCTAssertEqual(LiveActivityPlanner.nextChange(.init(nextEvent: later), settings: settings, now: now), date(13, 14, 30))
+        XCTAssertEqual(LiveActivityPlanner.nextChange(withMeeting, settings: settings, now: now), date(13, 10, 20), "countdown ends at the start")
+        XCTAssertEqual(LiveActivityPlanner.select(withMeeting, settings: settings, now: date(13, 10, 25))?.coalescingKey,
+                       LiveActivityKey.media, "no countdown once the meeting has started")
 
         XCTAssertEqual(LiveActivityPlanner.select(.init(nextEvent: meeting, waitingAgents: 1), settings: settings, now: now)?.coalescingKey,
                        LiveActivityKey.agents, "waiting agent first")
@@ -363,5 +366,29 @@ final class FullScreenSettingTests: XCTestCase {
     func testHidingOverFullScreenIsOnEvenForFormerOptOut() {
         XCTAssertTrue(EspazioSettings.decode(Data(#"{"hideInFullScreen":false}"#.utf8)).hideOverFullScreen)
         XCTAssertFalse(EspazioSettings.decode(Data(#"{"hideOverFullScreen":false}"#.utf8)).hideOverFullScreen)
+    }
+}
+
+final class MeetingCountdownTests: XCTestCase {
+    private func at(_ minute: Int) -> Date { Date(timeIntervalSince1970: 1_800_000_000 + TimeInterval(minute * 60)) }
+
+    func testNextMeetingSkipsStartedFreeAndAllDayEvents() {
+        var free = CalendarEvent(id: "free", title: "Pause déjeuner", start: at(10), end: at(70), source: .eventKit)
+        free.availability = .free
+        let ongoing = CalendarEvent(id: "now", title: "En cours", start: at(-10), end: at(20), source: .eventKit)
+        let allDay = CalendarEvent(id: "day", title: "Congé", start: at(5), end: at(1440), isAllDay: true, source: .eventKit)
+        let next = CalendarEvent(id: "next", title: "Revue", start: at(30), end: at(60), source: .eventKit)
+        XCTAssertEqual([ongoing, free, allDay, next].nextMeeting(after: at(0))?.id, "next")
+        XCTAssertNil([ongoing, free].nextMeeting(after: at(0)))
+    }
+
+    func testShortCountdownAndRing() {
+        XCTAssertEqual(CountdownFormatter.short(until: at(12), now: at(0)), "12 min")
+        XCTAssertEqual(CountdownFormatter.short(until: at(65), now: at(0)), "1 h 05")
+        XCTAssertEqual(CountdownFormatter.short(until: at(0).addingTimeInterval(30), now: at(0)), "< 1 min")
+        XCTAssertEqual(CountdownFormatter.short(until: at(0), now: at(1)), "Maintenant")
+        XCTAssertEqual(CountdownProgress.remaining(until: at(15), window: 1800, now: at(0)), 0.5, accuracy: 0.001)
+        XCTAssertEqual(CountdownProgress.remaining(until: at(60), window: 1800, now: at(0)), 1)
+        XCTAssertEqual(CountdownProgress.remaining(until: at(0), window: 1800, now: at(5)), 0)
     }
 }

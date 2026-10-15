@@ -446,7 +446,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         }
         let inputs = LiveActivityInputs(
             nowPlaying: modules.media ? liveMedia : nil,
-            nextEvent: (modules.calendar || modules.googleCalendar) ? state.nextEvent(now: now) : nil,
+            nextEvent: (modules.calendar || modules.googleCalendar) ? state.events.nextMeeting(after: now) : nil,
             waitingAgents: agentSessions.filter { $0.state == .waiting }.count,
             activeAgents: agentSessions.filter { $0.state == .active }.count,
             unreadMail: modules.gmail ? state.unreadCount : nil,
@@ -551,12 +551,18 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         updateFocusContext(isInMeeting: state.events.contains { $0.isMeeting(at: now) })
         var candidates: [Date] = []
         for event in state.events where !event.isAllDay {
+            if event.end > now { candidates.append(event.end) }
+            // Free and out-of-office events are no meetings: no warning, no start notice.
+            guard event.countsAsMeeting else { continue }
             let warning = event.start.addingTimeInterval(-300)
             if warning > now { candidates.append(warning) } else if event.start > now, !notifiedSchedule.contains("event:\(event.id)") {
                 notifyEvent(event, now: now)
             }
-            if event.start > now { candidates.append(event.start) }
-            if event.end > now { candidates.append(event.end) }
+            if event.start > now {
+                candidates.append(event.start)
+            } else if now.timeIntervalSince(event.start) < 60, !notifiedSchedule.contains("start:\(event.id)") {
+                notifyEventStart(event, now: now)
+            }
         }
         for reminder in remindersAll where !reminder.isCompleted && reminder.hasDueTime {
             guard let due = reminder.due else { continue }
@@ -591,6 +597,17 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
             subtitle: CountdownFormatter.string(until: event.start, now: now), symbol: event.meetingURL == nil ? "calendar" : "video.fill",
             reference: event.id,
             createdAt: now, expiresAt: event.start.addingTimeInterval(60)))
+    }
+
+    /// The meeting starts now: the countdown gives way to a notice that animates the notch.
+    private func notifyEventStart(_ event: CalendarEvent, now: Date) {
+        if notifiedSchedule.count > 500 { notifiedSchedule.removeAll() }
+        notifiedSchedule.insert("start:\(event.id)")
+        dismissActivity(key: "event:\(event.id)")
+        post(ActivityItem(
+            source: .calendar, priority: .p1, coalescingKey: "\(PeekKeys.eventStart)\(event.id)", title: event.title,
+            subtitle: "Maintenant", symbol: event.meetingURL == nil ? "calendar" : "video.fill",
+            reference: event.id, createdAt: now, expiresAt: now.addingTimeInterval(20)))
     }
 
     private func notifyReminder(_ reminder: ReminderItem, now: Date) {
@@ -786,7 +803,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
     func handlePeekClick() -> Bool {
         guard let item = state.peek else { return false }
         let key = item.coalescingKey
-        if key.hasPrefix("event:"), let id = item.reference, let event = state.events.first(where: { $0.id == id }) {
+        if key.hasPrefix("event:") || key.hasPrefix(PeekKeys.eventStart), let id = item.reference, let event = state.events.first(where: { $0.id == id }) {
             if let url = event.meetingURL { joinMeeting(url) } else { openEvent(event) }
             dismissActivity(key: key)
             return true

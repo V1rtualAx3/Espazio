@@ -8,6 +8,9 @@ public struct NotchRootView: View {
     let state: EspazioState
     let actions: EspazioActions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Bounce of the notch when a meeting starts.
+    @State private var bounce = false
+    @State private var bounceTask: Task<Void, Never>?
 
     public init(presentation: NotchPresentation, state: EspazioState, actions: EspazioActions) {
         self.presentation = presentation
@@ -34,16 +37,43 @@ public struct NotchRootView: View {
                     .transition(.opacity)
             }
             .frame(width: size.width, height: size.height)
+            .overlay {
+                if notchState == .peek, let key = state.peek?.coalescingKey, key.hasPrefix(PeekKeys.eventStart) {
+                    EventStartGlow(topRadius: topRadius, bottomRadius: bottomRadius, reduceMotion: reduceMotion)
+                        .id(key)
+                }
+            }
             .clipShape(NotchShape(topRadius: topRadius, bottomRadius: bottomRadius))
             .contentShape(NotchShape(topRadius: topRadius, bottomRadius: bottomRadius))
+            .scaleEffect(x: bounce ? 1.06 : 1, y: bounce ? 1.18 : 1, anchor: .top)
             .opacity(presentation.suppressed && notchState != .expanded ? 0 : 1)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(EZMotion.spring(reduceMotion: reduceMotion), value: notchState)
+        .onChange(of: state.peek?.coalescingKey) { _, key in
+            if let key, key.hasPrefix(PeekKeys.eventStart) { bounceForEventStart() }
+        }
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Espazio")
+    }
+
+    /// Three quick bounces so the start of a meeting cannot go unnoticed (the glow alone with
+    /// Reduce Motion).
+    private func bounceForEventStart() {
+        guard !reduceMotion else { return }
+        bounceTask?.cancel()
+        bounceTask = Task { @MainActor in
+            for _ in 0..<3 {
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.45)) { bounce = true }
+                try? await Task.sleep(nanoseconds: 260_000_000)
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { bounce = false }
+                try? await Task.sleep(nanoseconds: 420_000_000)
+                if Task.isCancelled { break }
+            }
+            bounce = false
+        }
     }
 
     @ViewBuilder
@@ -75,6 +105,8 @@ public struct NotchRootView: View {
 public enum PeekKeys {
     public static let nowPlaying = "media"
     public static let trackChange = "media-track"
+    /// Prefix of the notice shown when a meeting starts (followed by the event id).
+    public static let eventStart = "event-start:"
 }
 
 /// Compact view on both sides of the notch: one prioritized piece of information only.
@@ -174,13 +206,19 @@ struct PeekView: View {
             }
         } else if item.coalescingKey == LiveActivityKey.event || item.coalescingKey.hasPrefix("event:"),
                   let event = state.events.first(where: { $0.id == item.reference }) {
-            // Live countdown, ticking only while the peek is on screen.
-            TimelineView(.periodic(from: .now, by: 30)) { context in
-                Text(CountdownFormatter.string(until: event.start, end: event.end, now: context.date))
-                    .font(EZFont.captionEmphasis)
-                    .foregroundStyle(EZColor.notchPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
+            // Live countdown with a circular hourglass emptying until the start, ticking only
+            // while the peek is on screen.
+            let window: TimeInterval = item.coalescingKey == LiveActivityKey.event
+                ? TimeInterval(state.settings.live.eventLeadMinutes * 60) : 300
+            TimelineView(.periodic(from: .now, by: 5)) { context in
+                HStack(spacing: 6) {
+                    Text(CountdownFormatter.short(until: event.start, now: context.date))
+                        .font(EZFont.captionEmphasis.monospacedDigit())
+                        .foregroundStyle(EZColor.notchPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                    CountdownRing(remaining: CountdownProgress.remaining(until: event.start, window: window, now: context.date))
+                }
             }
         } else if item.coalescingKey == PeekKeys.nowPlaying {
             Image(systemName: "waveform")
@@ -265,6 +303,25 @@ private struct CounterLabel: View {
     }
 }
 
+/// Circular hourglass: a ring that empties as the start of an event approaches.
+struct CountdownRing: View {
+    /// 1 when the countdown begins, 0 at the start.
+    let remaining: Double
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(EZColor.notchTrack, lineWidth: 2)
+            Circle()
+                .trim(from: 0, to: remaining)
+                .stroke(EZColor.notchPrimary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 0.5), value: remaining)
+        }
+        .frame(width: 12, height: 12)
+        .accessibilityHidden(true)
+    }
+}
+
 /// Small unread counters (e-mail, Chat) shown beside the icon of whatever the peek displays, so a
 /// playing track or a meeting countdown never hides them.
 struct NotchBadges: View {
@@ -289,5 +346,28 @@ struct NotchBadges: View {
         .foregroundStyle(EZColor.notchSecondary)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(count) \(label)")
+    }
+}
+
+/// Pulsing white outline along the notch edge while the meeting-start notice is shown.
+struct EventStartGlow: View {
+    let topRadius: CGFloat
+    let bottomRadius: CGFloat
+    let reduceMotion: Bool
+    @State private var lit = false
+
+    var body: some View {
+        NotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
+            .stroke(EZColor.notchPrimary, lineWidth: 3)
+            .blur(radius: 1.5)
+            .opacity(lit ? 0.9 : 0.15)
+            .allowsHitTesting(false)
+            .onAppear {
+                if reduceMotion {
+                    lit = true
+                } else {
+                    withAnimation(.easeInOut(duration: 0.6).repeatCount(9, autoreverses: true)) { lit = true }
+                }
+            }
     }
 }

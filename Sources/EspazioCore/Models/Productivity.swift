@@ -63,6 +63,22 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Codable {
     public func isMeeting(at date: Date) -> Bool { countsAsMeeting && isOngoing(at: date) }
 }
 
+public extension Array where Element == CalendarEvent {
+    /// Next busy, timed event that has not started yet: the one the notch counts down to.
+    func nextMeeting(after date: Date) -> CalendarEvent? {
+        filter { !$0.isAllDay && $0.countsAsMeeting && $0.start > date }.min { $0.start < $1.start }
+    }
+}
+
+/// Share of the countdown window still to run before an event starts, from 1 (window just
+/// entered) to 0 (start), for the circular hourglass.
+public enum CountdownProgress {
+    public static func remaining(until start: Date, window: TimeInterval, now: Date) -> Double {
+        guard window > 0 else { return 0 }
+        return Swift.min(Swift.max(start.timeIntervalSince(now) / window, 0), 1)
+    }
+}
+
 public enum MeetingLinkExtractor {
     /// Hosts recognized as video meeting providers (suffix match).
     public static let meetingHosts = [
@@ -180,5 +196,17 @@ public enum CountdownFormatter {
         let hours = minutes / 60
         let rest = minutes % 60
         return rest == 0 ? "Dans \(hours) h" : String(format: "Dans %d h %02d", hours, rest)
+    }
+
+    /// Time left without "Dans", shown beside the circular hourglass: "12 min", "1 h 05", "< 1 min".
+    public static func short(until start: Date, now: Date) -> String {
+        let seconds = start.timeIntervalSince(now)
+        if seconds <= 0 { return "Maintenant" }
+        if seconds < 60 { return "< 1 min" }
+        let minutes = Int((seconds / 60).rounded(.up))
+        if minutes < 60 { return "\(minutes) min" }
+        let hours = minutes / 60
+        let rest = minutes % 60
+        return rest == 0 ? "\(hours) h" : String(format: "%d h %02d", hours, rest)
     }
 }

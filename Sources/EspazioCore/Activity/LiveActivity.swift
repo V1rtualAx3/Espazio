@@ -93,7 +93,9 @@ public enum LiveActivityPlanner {
         if settings.nextEvent, let event = inputs.nextEvent, !event.isAllDay {
             let lead = TimeInterval(settings.eventLeadMinutes * 60)
             let untilStart = event.start.timeIntervalSince(now)
-            if untilStart <= lead, now < event.end {
+            // Only before the start: once the meeting begins, the start notice takes over and the
+            // countdown leaves the notch.
+            if untilStart > 0, untilStart <= lead {
                 return item(LiveActivityKey.event, source: .calendar, title: event.title,
                             subtitle: CountdownFormatter.string(until: event.start, end: event.end, now: now),
                             symbol: "calendar", reference: event.id, now: now)
@@ -123,11 +125,11 @@ public enum LiveActivityPlanner {
     }
 
     /// Next instant at which the selection may change on its own (a meeting entering the lead
-    /// window or ending), so the owner can schedule one timer instead of polling.
+    /// window or starting), so the owner can schedule one timer instead of polling.
     public static func nextChange(_ inputs: LiveActivityInputs, settings: LiveActivitySettings, now: Date) -> Date? {
         guard settings.nextEvent, let event = inputs.nextEvent, !event.isAllDay else { return nil }
         let entry = event.start.addingTimeInterval(-TimeInterval(settings.eventLeadMinutes * 60))
-        return [entry, event.end].filter { $0 > now }.min()
+        return [entry, event.start].filter { $0 > now }.min()
     }
 
     private static func item(
