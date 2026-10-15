@@ -161,8 +161,8 @@ Sources/
 └── Espazio                application : fenêtres, écrans, raccourcis, coordinateur   (macOS)
 ```
 
-La CI compile et teste la logique sous Linux, puis l’application complète sous macOS, et publie
-`Espazio.app`, le `.dmg` et le `.pkg`.
+La CI compile et teste la logique sous Linux, puis l’application complète sous macOS ; à chaque version
+publiée, elle assemble le `.dmg` et le `.pkg`, lance l’app 10 s et les joint à la release.
 
 Avant de contribuer, lisez [AGENTS.md](AGENTS.md) et le [cahier des charges](ESPAZIO_CAHIER_DES_CHARGES.md).
 

@@ -1,8 +1,12 @@
 name: CI
 
+# macOS minutes count ten times against the Actions quota: each commit is built once (push run;
+# pull_request runs only for forks, whose pushes do not run here), and the installers are built
+# only by the release job, when a version is published.
 on:
   push:
     branches: [main, "claude/**"]
+    paths-ignore: ["docs/**", "**/*.md", "Resources/Brand/**"]
   pull_request:
   workflow_dispatch:
 
@@ -15,6 +19,7 @@ jobs:
   commits:
     name: Commits (Conventional Commits)
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,6 +46,7 @@ jobs:
   linux-core:
     name: Core logic (Linux)
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     container: swift:6.1-noble
     steps:
       - uses: actions/checkout@v4
@@ -52,6 +58,7 @@ jobs:
   macos-app:
     name: App (macOS)
     runs-on: macos-15
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
@@ -63,29 +70,8 @@ jobs:
         run: swift build
       - name: Test
         run: swift test
-      - name: Signing identity (self-signed, stable across builds; ad-hoc if not configured)
-        env:
-          MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
-          MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
-        run: scripts/import-signing-identity.sh
-      - name: Bundle Espazio.app, .dmg and .pkg
-        run: scripts/package.sh
-      - name: Smoke test (launch the bundled app)
-        run: scripts/smoke-test.sh
-      - name: Upload app
-        uses: actions/upload-artifact@v4
-        with:
-          name: Espazio-app
-          path: build/Espazio.zip
-          retention-days: 14
-      - name: Upload installers
-        uses: actions/upload-artifact@v4
-        with:
-          name: Espazio-installers
-          path: |
-            build/Espazio-*.dmg
-            build/Espazio-*.pkg
-          retention-days: 14
+      # Installers (.dmg, .pkg) are built, smoke-tested and attached by the release job, only
+      # when semantic-release publishes a version.
 
   release:
     name: Release (semantic-release)

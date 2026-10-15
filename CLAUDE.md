@@ -38,5 +38,7 @@ Un commit = une intention ; ne pas mélanger `feat` et `fix` sans rapport.
 scripts/swift-linux.sh test     # logique multiplateforme (Docker swift:6.1-noble)
 ```
 
-La CI macOS compile l’app, exécute les tests, assemble DMG/PKG et lance l’app 10 s (`scripts/smoke-test.sh`).
+La CI macOS compile l’app et exécute les tests ; le job de release assemble DMG/PKG et lance l’app 10 s
+(`scripts/smoke-test.sh`) quand une version est publiée. Les minutes macOS comptent 10 fois dans le quota
+Actions : chaque commit n’est construit qu’une fois (run `push`), regrouper les petits commits avant de pousser.
 Ne jamais annoncer un résultat macOS sans l’avoir vu en CI ou sur un Mac.
