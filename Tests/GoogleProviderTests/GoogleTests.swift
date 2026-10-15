@@ -498,3 +498,53 @@ final class GoogleAPITests: XCTestCase {
         XCTAssertTrue(events[1].isAllDay)
     }
 }
+
+final class CredentialVaultTests: XCTestCase {
+    private let tokens = OAuthTokens(accessToken: "a", refreshToken: "rt", expiresAt: Date(timeIntervalSince1970: 1_000), scopes: [])
+
+    func testMergesLegacyItemsIntoOne() throws {
+        let storage = InMemorySecretStorage([
+            GoogleCredentialVault.legacyTokensAccount: try JSONEncoder().encode(tokens),
+            GoogleCredentialVault.legacySecretAccount: Data("secret".utf8),
+        ])
+        let vault = GoogleCredentialVault(storage: storage)
+        XCTAssertEqual(vault.load(), tokens)
+        XCTAssertEqual(vault.clientSecret, "secret")
+        XCTAssertEqual(storage.accounts, [GoogleCredentialVault.account])
+        // A fresh launch finds the merged item.
+        let next = GoogleCredentialVault(storage: storage)
+        XCTAssertEqual(next.load(), tokens)
+        XCTAssertEqual(next.clientSecret, "secret")
+    }
+
+    func testReadsStorageOncePerLaunch() throws {
+        let storage = InMemorySecretStorage()
+        let vault = GoogleCredentialVault(storage: storage)
+        try vault.setClientSecret("s")
+        let reads = storage.reads
+        _ = vault.load()
+        _ = vault.clientSecret
+        try vault.save(tokens)
+        XCTAssertEqual(storage.reads, reads)
+    }
+
+    func testSignOutKeepsTheClientSecret() throws {
+        let storage = InMemorySecretStorage()
+        let vault = GoogleCredentialVault(storage: storage)
+        try vault.setClientSecret("s")
+        try vault.save(tokens)
+        vault.delete()
+        let next = GoogleCredentialVault(storage: storage)
+        XCTAssertNil(next.load())
+        XCTAssertEqual(next.clientSecret, "s")
+    }
+
+    func testEmptyCredentialsLeaveNoItem() throws {
+        let storage = InMemorySecretStorage()
+        let vault = GoogleCredentialVault(storage: storage)
+        try vault.save(tokens)
+        vault.delete()
+        XCTAssertEqual(storage.accounts, [])
+        XCTAssertNil(vault.clientSecret)
+    }
+}

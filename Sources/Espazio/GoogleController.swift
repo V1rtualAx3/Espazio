@@ -12,8 +12,8 @@ import GoogleProvider
 final class GoogleController {
     private weak var coordinator: AppCoordinator?
     private let http = URLSessionHTTPClient()
-    private let tokenStore = KeychainTokenStore()
-    private let secretItem = KeychainItem(service: "app.espazio.google", account: "client-secret")
+    /// Tokens and client secret in a single Keychain item (one access prompt per update).
+    private let vault = GoogleCredentialVault(storage: KeychainSecretStorage(service: "app.espazio.google"))
     private var session: GoogleAuthSession?
     private var gmailMonitor: GmailMonitor?
     private var loops: [SyncKind: Task<Void, Never>] = [:]
@@ -90,9 +90,8 @@ final class GoogleController {
 
     private func makeSession() -> GoogleAuthSession? {
         guard let clientID = state?.settings.googleClientID, !clientID.isEmpty else { return nil }
-        let secret = secretItem.read().map { String(decoding: $0, as: UTF8.self) }
-        let client = GoogleOAuthClient(clientID: clientID, clientSecret: secret, http: http)
-        return GoogleAuthSession(client: client, store: tokenStore)
+        let client = GoogleOAuthClient(clientID: clientID, clientSecret: vault.clientSecret, http: http)
+        return GoogleAuthSession(client: client, store: vault)
     }
 
     private func startLoop() {
@@ -142,7 +141,7 @@ final class GoogleController {
         var settings = coordinator.state.settings
         settings.googleClientID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
         let secret = clientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !secret.isEmpty { try? secretItem.write(Data(secret.utf8)) }
+        if !secret.isEmpty { try? vault.setClientSecret(secret) }
         coordinator.updateSettings(settings)
         session = makeSession()
         coordinator.settingsWindow.lastError = "Identifiants OAuth enregistrés."
@@ -158,8 +157,7 @@ final class GoogleController {
             return
         }
         signInTask?.cancel()
-        let secret = secretItem.read().map { String(decoding: $0, as: UTF8.self) }
-        let client = GoogleOAuthClient(clientID: clientID, clientSecret: secret, http: http)
+        let client = GoogleOAuthClient(clientID: clientID, clientSecret: vault.clientSecret, http: http)
         let scopes = requiredScopes.union(extraScopes)
         setStatuses(.connecting)
         signInTask = Task { [weak self] in

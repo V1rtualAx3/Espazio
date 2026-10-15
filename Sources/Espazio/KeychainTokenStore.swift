@@ -38,19 +38,19 @@ struct KeychainItem: Sendable {
     }
 }
 
-/// Google OAuth tokens in the Keychain (never in UserDefaults or logs).
-struct KeychainTokenStore: TokenStore {
-    private let item = KeychainItem(service: "app.espazio.google", account: "oauth-tokens")
+/// Keychain items of the "app.espazio.google" service, one per account.
+struct KeychainSecretStorage: SecretStorage {
+    let service: String
 
-    func load() -> OAuthTokens? {
-        item.read().flatMap { try? JSONDecoder().decode(OAuthTokens.self, from: $0) }
+    func read(_ account: String) -> Data? {
+        KeychainItem(service: service, account: account).read()
     }
 
-    func save(_ tokens: OAuthTokens) throws {
-        try item.write(JSONEncoder().encode(tokens))
+    func write(_ data: Data, account: String) throws {
+        try KeychainItem(service: service, account: account).write(data)
     }
 
-    func delete() {
-        item.delete()
+    func delete(_ account: String) {
+        KeychainItem(service: service, account: account).delete()
     }
 }
