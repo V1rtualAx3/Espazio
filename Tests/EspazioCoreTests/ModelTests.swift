@@ -337,3 +337,24 @@ final class NotchTimerTests: XCTestCase {
         XCTAssertEqual(store.sessions["s"]?.turnStartedAt, t.addingTimeInterval(300), "a new turn restarts the clock")
     }
 }
+
+final class ContinuousDisplayPolicyTests: XCTestCase {
+    func testContinuousItemsStayDuringMeetingsButNotWhilePresenting() {
+        let track = LiveActivityPlanner.select(
+            .init(nowPlaying: NowPlaying(trackID: "t", title: "Dance With Me", artist: "Tones And I", album: nil, state: .playing,
+                                         duration: nil, position: nil, positionDate: Date())),
+            settings: .init(), now: Date())!
+        let volume = ActivityItem(source: .volume, priority: .p3, coalescingKey: "volume", title: "Volume", symbol: "speaker", createdAt: Date())
+        var policy = FocusPolicy()
+        policy.context.isInMeeting = true
+        XCTAssertTrue(policy.mayPeek(track), "the playing track stays during a meeting")
+        XCTAssertFalse(policy.mayPeek(volume), "transient P3 items still wait")
+        policy.context.isFullScreen = true
+        XCTAssertTrue(policy.mayPeek(track))
+        policy.context.isPresenting = true
+        XCTAssertFalse(policy.mayPeek(track), "hidden while an audience sees the notch")
+        policy.context.isPresenting = false
+        policy.mode = .focused
+        XCTAssertFalse(policy.mayPeek(track))
+    }
+}

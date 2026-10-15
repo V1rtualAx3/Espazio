@@ -64,6 +64,10 @@ public struct FocusPolicy: Sendable, Equatable {
 
     public func mayPeek(_ item: ActivityItem) -> Bool {
         guard accepts(item), let threshold = peekThreshold else { return false }
-        return item.priority <= threshold
+        if item.priority <= threshold { return true }
+        // The continuous information the user chose (track, counters, timer…) never interrupts:
+        // it stays during a meeting or in full screen, and only goes away in silent or focused
+        // mode and while presenting, when an audience sees the notch.
+        return mode == .normal && !context.isPresenting && LiveActivityKey.all.contains(item.coalescingKey)
     }
 }
