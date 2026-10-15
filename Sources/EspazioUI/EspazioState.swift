@@ -132,9 +132,9 @@ public final class EspazioState {
 
     public init() {}
 
-    /// Next event that has not ended.
+    /// Event shown in the agenda: a started event gives way to the next 15 min after its start.
     public func nextEvent(now: Date) -> CalendarEvent? {
-        events.first { !$0.isAllDay && $0.end > now } ?? events.first { $0.end > now }
+        events.eventToShow(at: now)
     }
 
     /// Tabs to show, according to enabled modules.

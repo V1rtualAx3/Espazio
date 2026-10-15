@@ -382,6 +382,18 @@ final class MeetingCountdownTests: XCTestCase {
         XCTAssertNil([ongoing, free].nextMeeting(after: at(0)))
     }
 
+    func testAgendaMovesOnFifteenMinutesAfterTheStart() {
+        let long = CalendarEvent(id: "long", title: "Atelier", start: at(0), end: at(120), source: .eventKit)
+        let overlap = CalendarEvent(id: "overlap", title: "Point", start: at(5), end: at(35), source: .eventKit)
+        let next = CalendarEvent(id: "next", title: "Revue", start: at(60), end: at(90), source: .eventKit)
+        let allDay = CalendarEvent(id: "day", title: "Férié", start: at(-600), end: at(1440), isAllDay: true, source: .eventKit)
+        let events = [allDay, long, overlap, next]
+        XCTAssertEqual(events.eventToShow(at: at(10))?.id, "long", "started less than 15 min ago")
+        XCTAssertEqual(events.eventToShow(at: at(16))?.id, "overlap")
+        XCTAssertEqual(events.eventToShow(at: at(21))?.id, "next", "both started more than 15 min ago")
+        XCTAssertEqual(events.eventToShow(at: at(100))?.id, "day", "all-day once nothing timed is left")
+    }
+
     func testShortCountdownAndRing() {
         XCTAssertEqual(CountdownFormatter.short(until: at(12), now: at(0)), "12 min")
         XCTAssertEqual(CountdownFormatter.short(until: at(65), now: at(0)), "1 h 05")
