@@ -37,7 +37,8 @@ public enum HostApplication {
         while pid > 1, paths.count < limit {
             var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
             if proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 {
-                paths.append(String(cString: buffer))
+                let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+                paths.append(String(decoding: bytes, as: UTF8.self))
             }
             guard let parent = parentPID(of: pid), parent != pid else { break }
             pid = parent
