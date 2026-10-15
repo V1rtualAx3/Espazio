@@ -34,6 +34,12 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
     private var bluetooth: BluetoothMonitor?
     private var messagesBadge: DockBadgeMonitor?
     private var countdownTimer: Timer?
+    /// Last playing track, kept on screen for a few seconds after a pause or a stop: players
+    /// briefly report "paused" / nothing between two tracks, which made the media blink.
+    private var lastPlaying: NowPlaying?
+    private var mediaGraceUntil: Date?
+    private var mediaGraceTimer: Timer?
+    static let mediaGrace: TimeInterval = 8
     private var clipboardMonitor: ClipboardMonitor?
     private var clipboardHistory = ClipboardHistory()
     private var screenObserver: NSObjectProtocol?
@@ -391,6 +397,19 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         state.nowPlaying = playing
         state.mediaAvailable = media.isAnyRunning
         let now = Date()
+        if let playing, playing.state == .playing {
+            lastPlaying = playing
+            mediaGraceUntil = nil
+            mediaGraceTimer?.invalidate()
+        } else if previous?.state == .playing {
+            mediaGraceUntil = now.addingTimeInterval(Self.mediaGrace)
+            mediaGraceTimer?.invalidate()
+            let timer = Timer(fire: now.addingTimeInterval(Self.mediaGrace + 0.2), interval: 0, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshLiveActivity() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            mediaGraceTimer = timer
+        }
         guard let playing else {
             refreshLiveActivity()
             return
@@ -418,8 +437,13 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
             case .chatGPT: return modules.chatGPT
             }
         }
+        // Within the grace period after a pause/stop, keep showing the last playing track.
+        var liveMedia = state.nowPlaying
+        if liveMedia?.state != .playing, let until = mediaGraceUntil, now < until, let last = lastPlaying {
+            liveMedia = last
+        }
         let inputs = LiveActivityInputs(
-            nowPlaying: modules.media ? state.nowPlaying : nil,
+            nowPlaying: modules.media ? liveMedia : nil,
             nextEvent: (modules.calendar || modules.googleCalendar) ? state.nextEvent(now: now) : nil,
             waitingAgents: agentSessions.filter { $0.state == .waiting }.count,
             activeAgents: agentSessions.filter { $0.state == .active }.count,
