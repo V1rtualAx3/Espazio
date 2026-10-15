@@ -5,6 +5,17 @@ public enum CalendarEventSource: String, Sendable, Codable {
     case google
 }
 
+/// How the event shows the user's time ("Afficher comme" in Calendar, "Occupé / Disponible" in Google).
+public enum EventAvailability: String, Sendable, Codable {
+    case busy
+    case free
+    case tentative
+    /// Out of office ("Absent").
+    case unavailable
+    /// The calendar does not say: treated as busy.
+    case unknown
+}
+
 public struct CalendarEvent: Sendable, Equatable, Identifiable, Codable {
     public let id: String
     public var title: String
@@ -18,11 +29,12 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Codable {
     public var source: CalendarEventSource
     /// iCalendar UID when known (EventKit `calendarItemExternalIdentifier`, Google `iCalUID`).
     public var iCalUID: String?
+    public var availability: EventAvailability
 
     public init(
         id: String, title: String, start: Date, end: Date, isAllDay: Bool = false, location: String? = nil,
         notes: String? = nil, url: URL? = nil, calendarName: String? = nil, source: CalendarEventSource,
-        iCalUID: String? = nil
+        iCalUID: String? = nil, availability: EventAvailability = .unknown
     ) {
         self.id = id
         self.title = title
@@ -35,6 +47,7 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Codable {
         self.calendarName = calendarName
         self.source = source
         self.iCalUID = iCalUID
+        self.availability = availability
     }
 
     public var meetingURL: URL? {
@@ -42,6 +55,12 @@ public struct CalendarEvent: Sendable, Equatable, Identifiable, Codable {
     }
 
     public func isOngoing(at date: Date) -> Bool { !isAllDay && start <= date && date < end }
+
+    /// Only events showing the user as busy limit interruptions; "free" (a lunch break) and
+    /// out-of-office events stay in the agenda without counting as a meeting.
+    public var countsAsMeeting: Bool { availability == .busy || availability == .unknown }
+
+    public func isMeeting(at date: Date) -> Bool { countsAsMeeting && isOngoing(at: date) }
 }
 
 public enum MeetingLinkExtractor {

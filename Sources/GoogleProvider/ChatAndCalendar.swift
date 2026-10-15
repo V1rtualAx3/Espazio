@@ -213,7 +213,24 @@ public struct GoogleCalendarService: Sendable {
                 id: id, title: item["summary"]?.stringValue ?? "Sans titre", start: start, end: end, isAllDay: allDay,
                 location: item["location"]?.stringValue ?? meet, notes: item["description"]?.stringValue.map { String($0.prefix(2000)) },
                 url: meet.flatMap(URL.init(string:)), calendarName: "Google", source: .google,
-                iCalUID: item["iCalUID"]?.stringValue)
+                iCalUID: item["iCalUID"]?.stringValue, availability: availability(of: item))
         }
+    }
+
+    /// Out of office → unavailable; "Disponible" (transparent), working location or an invitation
+    /// the user declined → free; otherwise busy (Google's default).
+    static func availability(of item: JSONValue) -> EventAvailability {
+        switch item["eventType"]?.stringValue {
+        case "outOfOffice": return .unavailable
+        case "workingLocation": return .free
+        default: break
+        }
+        let me = item["attendees"]?.arrayValue?.first { $0["self"]?.boolValue == true }
+        switch me?["responseStatus"]?.stringValue {
+        case "declined": return .free
+        case "tentative": return .tentative
+        default: break
+        }
+        return item["transparency"]?.stringValue == "transparent" ? .free : .busy
     }
 }

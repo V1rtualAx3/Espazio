@@ -450,6 +450,20 @@ final class GoogleAPITests: XCTestCase {
         XCTAssertEqual(http.requestCount, 1)
     }
 
+    func testCalendarAvailability() throws {
+        let json = try JSONDecoder().decode(JSONValue.self, from: Data(#"""
+        {"items":[
+          {"id":"busy","summary":"Revue","start":{"dateTime":"2026-10-15T10:00:00Z"},"end":{"dateTime":"2026-10-15T11:00:00Z"}},
+          {"id":"lunch","summary":"Pause déjeuner","transparency":"transparent","start":{"dateTime":"2026-10-15T12:00:00Z"},"end":{"dateTime":"2026-10-15T13:00:00Z"}},
+          {"id":"ooo","summary":"Congés","eventType":"outOfOffice","start":{"dateTime":"2026-10-15T14:00:00Z"},"end":{"dateTime":"2026-10-15T18:00:00Z"}},
+          {"id":"declined","summary":"Comité","attendees":[{"email":"me@x.com","self":true,"responseStatus":"declined"}],"start":{"dateTime":"2026-10-15T15:00:00Z"},"end":{"dateTime":"2026-10-15T16:00:00Z"}}
+        ]}
+        """#.utf8))
+        let events = GoogleCalendarService.parseEvents(json)
+        XCTAssertEqual(events.map(\.availability), [.busy, .free, .unavailable, .free])
+        XCTAssertEqual(events.map(\.countsAsMeeting), [true, false, false, false])
+    }
+
     func testPeopleNamesParsing() throws {
         let json = try JSONDecoder().decode(JSONValue.self, from: Data(#"""
         {"responses":[{"requestedResourceName":"people/1","person":{"names":[{"displayName":"Alice"}]}},

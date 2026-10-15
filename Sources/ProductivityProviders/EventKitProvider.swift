@@ -97,10 +97,23 @@ public final class EventKitProvider {
                     id: event.eventIdentifier ?? event.calendarItemIdentifier, title: event.title ?? "Sans titre",
                     start: event.startDate, end: event.endDate, isAllDay: event.isAllDay, location: event.location,
                     notes: event.notes.map { String($0.prefix(2000)) }, url: event.url, calendarName: event.calendar?.title,
-                    source: .eventKit, iCalUID: event.calendarItemExternalIdentifier)
+                    source: .eventKit, iCalUID: event.calendarItemExternalIdentifier, availability: Self.availability(of: event))
             }
             .sorted { $0.start < $1.start }
         onEvents?(Array(events))
+    }
+
+    /// "Show as" of the event; an invitation the user declined does not keep them busy.
+    static func availability(of event: EKEvent) -> EventAvailability {
+        if event.attendees?.first(where: \.isCurrentUser)?.participantStatus == .declined { return .free }
+        switch event.availability {
+        case .busy: return .busy
+        case .free: return .free
+        case .tentative: return .tentative
+        case .unavailable: return .unavailable
+        case .notSupported: return .unknown
+        @unknown default: return .unknown
+        }
     }
 
     /// Opens the event in Calendar. `ical://ekevent/<id>` is the scheme Calendar registers; when it

@@ -546,7 +546,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
     func rescheduleTimers() {
         scheduleTimer?.invalidate()
         let now = Date()
-        updateFocusContext(isInMeeting: state.events.contains { $0.isOngoing(at: now) })
+        updateFocusContext(isInMeeting: state.events.contains { $0.isMeeting(at: now) })
         var candidates: [Date] = []
         for event in state.events where !event.isAllDay {
             let warning = event.start.addingTimeInterval(-300)
