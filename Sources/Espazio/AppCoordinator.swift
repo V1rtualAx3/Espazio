@@ -328,8 +328,9 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         }
         if playing.state == .playing, previous?.trackID != playing.trackID, previous != nil {
             post(ActivityItem(
-                source: .media, priority: .p3, coalescingKey: PeekKeys.trackChange, title: playing.title,
-                subtitle: playing.artist, symbol: "music.note", createdAt: now, expiresAt: now.addingTimeInterval(3)))
+                // The peek shows the subtitle: the track title, which is what changed.
+                source: .media, priority: .p3, coalescingKey: PeekKeys.trackChange, title: playing.artist.isEmpty ? "Nouveau morceau" : playing.artist,
+                subtitle: playing.title, symbol: "music.note", createdAt: now, expiresAt: now.addingTimeInterval(3)))
         }
         refreshLiveActivity()
     }
