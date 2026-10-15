@@ -10,6 +10,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Read-only by default (public repository); the release job asks for what it needs.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}-${{ github.event_name }}
   # Never cancel a push run: it may be publishing a release.

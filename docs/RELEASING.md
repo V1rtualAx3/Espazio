@@ -72,3 +72,31 @@ certificat redemande l’accès une fois.
 **Developer ID (distribution publique).** Pour des binaires notarisés, passer un certificat
 « Developer ID Application » dans `CODESIGN_IDENTITY` (runtime renforcé activé automatiquement) et
 `INSTALLER_IDENTITY` (voir [UPDATES.md](UPDATES.md)).
+
+## Dépôt public : réglages GitHub recommandés
+
+À faire une fois dans *Settings* (rien de tout cela ne se configure depuis le dépôt).
+
+**Rulesets › New branch ruleset** — cible : branche par défaut (`main`)
+- *Restrict deletions* et *Block force pushes*.
+- *Require a pull request before merging* (0 approbation requise si vous êtes seul ; 1 sinon), avec
+  *Require conversation resolution*.
+- *Require status checks to pass* : `Commits (Conventional Commits)`, `Core logic (Linux)`,
+  `App (macOS)`. Les runs `pull_request` d’une branche du dépôt sont sautés : les statuts viennent du run
+  `push` sur le même commit.
+- *Bypass list* : vous-même (*Repository admin*) et, pour que semantic-release puisse pousser le commit
+  `CHANGELOG.md` sur `main`, l’app **GitHub Actions** si elle est proposée ; sinon, un jeton à portée
+  fine (*Contents: read and write* sur ce dépôt) dans un secret `RELEASE_TOKEN` utilisé par le job release.
+
+**Tags** : ne pas restreindre la suppression des tags `v*` — le nettoyage des bêtas les supprime.
+
+**Code security** : activer *Dependency graph*, *Dependabot alerts*, *Secret scanning* avec *Push
+protection*, et *Private vulnerability reporting* (voir [SECURITY.md](../SECURITY.md)).
+
+**Actions › General**
+- *Fork pull request workflows from outside collaborators* : *Require approval for all external
+  contributors* (les secrets ne sont jamais transmis aux forks).
+- *Workflow permissions* : *Read repository contents* par défaut (le job release demande lui-même
+  l’écriture) ; laisser décochée la création/approbation de pull requests par Actions.
+
+**General** : décocher *Wikis* si inutilisé ; *Automatically delete head branches* au choix.

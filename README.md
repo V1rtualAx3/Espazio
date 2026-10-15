@@ -15,6 +15,7 @@
   <img src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&logoColor=white" alt="macOS 14+">
   <img src="https://img.shields.io/badge/Swift-6-000000?logo=swift&logoColor=white" alt="Swift 6">
   <img src="https://img.shields.io/badge/Apple%20Silicon-M1%E2%80%93M5-000000" alt="Apple Silicon">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL%20v3-000000" alt="Licence GPL v3"></a>
 </p>
 
 ---
@@ -34,6 +35,7 @@ acceptez ou refusez d’un clic sans quitter ce que vous faites.
 - [Développement](#développement)
 - [Documentation](#documentation)
 - [État du projet](#état-du-projet)
+- [Licence](#licence)
 
 ## Fonctionnalités
 
@@ -201,3 +203,10 @@ restent à réaliser.
 | Verr. Num | — non exposé par les claviers Mac |
 | Modes Concentration de macOS | — pas d’API publique : mode manuel intégré |
 | ChatGPT Desktop | ◐ état et ouverture uniquement |
+
+## Licence
+
+Espazio est un logiciel libre distribué sous **[GNU General Public License v3](LICENSE)** : vous pouvez
+l’utiliser, l’étudier, le modifier et le redistribuer ; toute version modifiée redistribuée doit rester
+sous GPL v3 avec son code source. Les contributions sont acceptées sous la même licence.
+Composants tiers et marques : [NOTICE.md](NOTICE.md).
