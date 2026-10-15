@@ -9,6 +9,7 @@ Tout se passe sur ce Mac ; aucun serveur Espazio n’existe.
 2. *APIs & Services › Library* : activer selon vos besoins
    * **Gmail API**
    * **Google Chat API** (comptes Google Workspace uniquement, voir plus bas)
+   * **Google Tasks API** (si vous activez Google Tasks)
    * **People API** (gratuite, facultative) : affiche le nom de l’expéditeur des messages Chat au lieu de
      « Participant »
    * **Google Calendar API** (seulement si votre agenda Google n’est *pas* déjà synchronisé dans l’app
@@ -30,6 +31,8 @@ Tout se passe sur ce Mac ; aucun serveur Espazio n’existe.
 | `gmail.modify` | au premier « Marquer comme lu » / « Archiver » |
 | `chat.spaces.readonly`, `chat.messages.readonly`, `chat.users.readstate.readonly`, `chat.users.spacesettings`, `directory.readonly` | connexion Google Chat : conversations non lues, réglages de notification (lus seulement ; Google ne propose pas de variante en lecture seule) et nom des expéditeurs |
 | `calendar.events.readonly` | option « Google Agenda direct » |
+| `tasks.readonly` | option « Google Tasks » : tâches du jour et en retard, avec les rappels |
+| `tasks` | à la première tâche terminée depuis Espazio |
 
 ## 3. Client OAuth
 

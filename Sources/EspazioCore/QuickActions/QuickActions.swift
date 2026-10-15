@@ -9,6 +9,7 @@ public struct QuickActionItem: Sendable, Equatable, Identifiable {
         case openSession(id: String)
         case openMail(id: String)
         case openChat(spaceID: String)
+        case openMessages
         case completeReminder(id: String)
         case toggleSilentMode
     }

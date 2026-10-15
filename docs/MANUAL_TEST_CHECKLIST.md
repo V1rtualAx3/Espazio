@@ -63,6 +63,8 @@ Machine : ________ · macOS : ________ · Écrans : ________ · Date : ________
 - [ ] G6 Compte personnel + Google Chat → « Non pris en charge pour ce compte », Gmail intact.
 - [ ] G7 Compte Workspace + Chat : message reçu → badge et aperçu en moins de 10 s ; message envoyé par soi → aucune notification ; conversation lue ailleurs → disparaît ; clic → ouverture dans Google Chat et retrait immédiat.
 - [ ] G7b Conversation Chat en sourdine → aucun badge, aucun aperçu ; « Pour vous » → listée sans aperçu.
+- [ ] G9 Google Tasks : tâche due aujourd’hui listée avec les rappels ; la terminer depuis la notch demande l’autorisation `tasks` une fois, puis la retire.
+- [ ] S9 iMessage : permission Accessibilité demandée ; message reçu → badge et aperçu ; lu dans Messages → badge retiré.
 - [ ] G8 E-mail ouvert depuis la notch → retiré de la liste et du badge immédiatement.
 
 ## M — Mesures (voir PERFORMANCE.md)

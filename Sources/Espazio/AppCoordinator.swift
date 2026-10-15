@@ -32,9 +32,12 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
     let power = PowerMonitor()
     let keyboard = KeyboardMonitor()
     private var bluetooth: BluetoothMonitor?
+    private var messagesBadge: DockBadgeMonitor?
     let eventKit = EventKitProvider()
     var eventKitEvents: [CalendarEvent] = []
     var googleEvents: [CalendarEvent] = []
+    private var eventKitReminders: [ReminderItem] = []
+    private var googleTasks: [ReminderItem] = []
     var remindersAll: [ReminderItem] = []
     private var notifiedSchedule: Set<String> = []
 
@@ -104,6 +107,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         power.stop()
         keyboard.stop()
         bluetooth?.stop()
+        messagesBadge?.stop()
         // A normal quit is not a crash during the Bluetooth start-up.
         UserDefaults.standard.removeObject(forKey: Self.bluetoothStartingKey)
         media.stopAll()
@@ -162,6 +166,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         if old.battery != new.battery { new.battery ? power.start() : power.stop() }
         if old.keyboard != new.keyboard { new.keyboard ? keyboard.start() : keyboard.stop() }
         if old.bluetooth != new.bluetooth { configureBluetooth(new.bluetooth) }
+        if old.iMessage != new.iMessage { configureMessages(new.iMessage) }
         if old.calendar != new.calendar || old.reminders != new.reminders {
             eventKit.eventsEnabled = new.calendar
             eventKit.remindersEnabled = new.reminders
@@ -169,7 +174,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         }
         if old.claudeCode != new.claudeCode || old.codex != new.codex { configureBridge() }
         if old.chatGPT != new.chatGPT { configureChatGPT() }
-        if old.gmail != new.gmail || old.googleChat != new.googleChat || old.googleCalendar != new.googleCalendar {
+        if old.gmail != new.gmail || old.googleChat != new.googleChat || old.googleCalendar != new.googleCalendar
+            || old.googleTasks != new.googleTasks {
             google?.restart()
         }
         for source in new.mutedSources { router.dismissAll(from: source) }
@@ -258,6 +264,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         if modules.keyboard { keyboard.start() }
         state.capsLock = modules.keyboard ? .value(keyboard.capsLockOn) : .unavailable(reason: "Module désactivé")
         configureBluetooth(modules.bluetooth)
+        configureMessages(modules.iMessage)
 
         media.onChange = { [weak self] playing, name in
             self?.state.mediaPlayerName = name
@@ -297,6 +304,58 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
             bluetooth?.stop()
             bluetooth = nil
         }
+    }
+
+    /// Unread iMessages from the Messages Dock badge (no content is read).
+    private func configureMessages(_ enabled: Bool) {
+        guard enabled else {
+            messagesBadge?.stop()
+            messagesBadge = nil
+            state.messagesUnread = nil
+            state.messagesNeedsPermission = false
+            refreshLiveActivity()
+            return
+        }
+        let monitor = messagesBadge ?? DockBadgeMonitor(bundleID: DockBadgeMonitor.messagesBundleID)
+        monitor.onChange = { [weak self] reading in self?.handleMessagesBadge(reading) }
+        if !AXIsProcessTrusted() { DockBadgeMonitor.requestPermission() }
+        monitor.start()
+        messagesBadge = monitor
+    }
+
+    private func handleMessagesBadge(_ reading: DockBadgeMonitor.Reading) {
+        let previous = state.messagesUnread
+        switch reading {
+        case let .count(count):
+            state.messagesUnread = count
+            state.messagesNeedsPermission = false
+            if let previous, count > previous {
+                let now = Date()
+                post(ActivityItem(
+                    source: .chat, priority: .p2, coalescingKey: "imessage", title: "iMessage",
+                    subtitle: count > 1 ? "\(count) non lus" : "Nouveau message", symbol: "message",
+                    createdAt: now, expiresAt: now.addingTimeInterval(6)))
+            }
+        case .needsPermission:
+            state.messagesUnread = nil
+            state.messagesNeedsPermission = true
+        case .unavailable:
+            state.messagesUnread = nil
+            state.messagesNeedsPermission = false
+        }
+        refreshLiveActivity()
+    }
+
+    func openMessages() {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: DockBadgeMonitor.messagesBundleID) {
+            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        }
+        display.collapseAll()
+    }
+
+    func requestAccessibilityPermission() {
+        DockBadgeMonitor.requestPermission()
+        openPrivacySettings("Privacy_Accessibility")
     }
 
     private func handleSystem(_ event: SystemEvent) {
@@ -355,7 +414,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
             waitingAgents: agentSessions.filter { $0.state == .waiting }.count,
             activeAgents: agentSessions.filter { $0.state == .active }.count,
             unreadMail: modules.gmail ? state.unreadCount : nil,
-            unreadChats: modules.googleChat ? state.chatUnread.count : 0)
+            unreadChats: modules.googleChat ? state.chatUnread.count : 0,
+            unreadMessages: modules.iMessage ? (state.messagesUnread ?? 0) : 0)
         let settings = state.settings.live
         let selected = LiveActivityPlanner.select(inputs, settings: settings, now: now)
         var changed = false
@@ -400,9 +460,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         }
         eventKit.onReminders = { [weak self] reminders in
             guard let self else { return }
-            self.remindersAll = reminders
-            self.state.reminders = ReminderGroups.group(reminders, now: Date())
-            self.rescheduleTimers()
+            self.eventKitReminders = reminders
+            self.mergeReminders()
         }
         eventKit.onAccessChange = { [weak self] in self?.refreshAccess() }
         refreshAccess()
@@ -421,6 +480,24 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         case .denied: return .denied
         case .restricted: return .restricted
         }
+    }
+
+    /// Google Tasks are shown with the reminders (due today and overdue).
+    func setGoogleTasks(_ tasks: [ReminderItem]) {
+        guard tasks != googleTasks else { return }
+        googleTasks = tasks
+        mergeReminders()
+    }
+
+    func dropGoogleTask(id: String) {
+        googleTasks.removeAll { $0.id == id }
+        mergeReminders()
+    }
+
+    private func mergeReminders() {
+        remindersAll = eventKitReminders + googleTasks
+        state.reminders = ReminderGroups.group(remindersAll, now: Date())
+        rescheduleTimers()
     }
 
     func mergeEvents() {
@@ -530,6 +607,9 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         for mail in state.mail {
             items.append(QuickActionItem(id: "mail:\(mail.id)", title: mail.subject, subtitle: mail.senderName, symbol: "envelope", action: .openMail(id: mail.id), keywords: ["mail"]))
         }
+        if let unread = state.messagesUnread, unread > 0 {
+            items.append(QuickActionItem(id: "imessage", title: "Messages", subtitle: "\(unread) non lu\(unread > 1 ? "s" : "")", symbol: "message", action: .openMessages, keywords: ["imessage", "sms"]))
+        }
         for chat in state.chatUnread.prefix(10) {
             items.append(QuickActionItem(id: "chat:\(chat.id)", title: chat.title, subtitle: "Google Chat · non lu", symbol: "bubble.left", action: .openChat(spaceID: chat.id)))
         }
@@ -551,6 +631,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
             if let session = state.sessions.first(where: { $0.id == id }) { openSession(session) }
         case let .openMail(id):
             if let mail = state.mail.first(where: { $0.id == id }) { openMail(mail) }
+        case .openMessages:
+            openMessages()
         case let .openChat(spaceID):
             if let chat = state.chatUnread.first(where: { $0.id == spaceID }) { openChat(chat) }
         case let .completeReminder(id):
@@ -565,7 +647,10 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
     func togglePlayPause() { media.playPause() }
     func nextTrack() { media.next() }
     func previousTrack() { media.previous() }
-    func openMediaApp() { media.openApp() }
+    func openMediaApp() {
+        media.openApp()
+        display.collapseAll()
+    }
 
     func requestCalendarAccess() {
         Task { _ = await eventKit.requestEventsAccess() }
@@ -591,6 +676,10 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
     }
 
     func completeReminder(id: String) {
+        if id.hasPrefix(GoogleTasksService.idPrefix) {
+            google?.completeTask(id: id)
+            return
+        }
         do {
             try eventKit.completeReminder(id: id)
         } catch {

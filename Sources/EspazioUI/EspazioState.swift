@@ -119,6 +119,11 @@ public final class EspazioState {
     public var chatUnread: [ChatUnread] = []
     public var googleAccount: String?
 
+    // iMessage (Dock badge of Messages)
+    public var messagesUnread: Int?
+    /// The Accessibility permission is missing for the iMessage badge.
+    public var messagesNeedsPermission = false
+
     // Diagnostics
     public var diagnostics: DiagnosticsSnapshot?
 
@@ -170,6 +175,7 @@ public protocol EspazioActions: AnyObject {
     func refreshGoogle()
     // Chat
     func openChat(_ chat: ChatUnread)
+    func openMessages()
     // App
     func setFocusMode(_ mode: FocusMode)
     func openSettings()
@@ -202,6 +208,7 @@ public final class NoopActions: EspazioActions {
     public func archiveMail(_ mail: MailSummary) {}
     public func refreshGoogle() {}
     public func openChat(_ chat: ChatUnread) {}
+    public func openMessages() {}
     public func setFocusMode(_ mode: FocusMode) {}
     public func openSettings() {}
     public func collapseNotch() {}

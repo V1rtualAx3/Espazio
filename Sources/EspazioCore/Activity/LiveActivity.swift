@@ -16,6 +16,8 @@ public struct LiveActivitySettings: Sendable, Codable, Equatable {
     public var mailBadge = true
     /// Discreet count of Google Chat conversations with new messages.
     public var chatBadge = true
+    /// Discreet unread iMessage count (Messages' Dock badge).
+    public var messagesBadge = true
 
     public init() {}
 
@@ -29,6 +31,7 @@ public struct LiveActivitySettings: Sendable, Codable, Equatable {
         agents = try c.decodeIfPresent(Bool.self, forKey: .agents) ?? d.agents
         mailBadge = try c.decodeIfPresent(Bool.self, forKey: .mailBadge) ?? d.mailBadge
         chatBadge = try c.decodeIfPresent(Bool.self, forKey: .chatBadge) ?? d.chatBadge
+        messagesBadge = try c.decodeIfPresent(Bool.self, forKey: .messagesBadge) ?? d.messagesBadge
     }
 }
 
@@ -39,7 +42,8 @@ public enum LiveActivityKey {
     public static let agents = "live-agents"
     public static let mail = "live-mail"
     public static let chat = "live-chat"
-    public static let all = [media, event, agents, mail, chat]
+    public static let messages = "live-imessage"
+    public static let all = [media, event, agents, mail, chat, messages]
 }
 
 /// Inputs available to the planner, already filtered by module switches.
@@ -50,10 +54,11 @@ public struct LiveActivityInputs: Sendable, Equatable {
     public var activeAgents: Int
     public var unreadMail: Int?
     public var unreadChats: Int
+    public var unreadMessages: Int
 
     public init(
         nowPlaying: NowPlaying? = nil, nextEvent: CalendarEvent? = nil, waitingAgents: Int = 0, activeAgents: Int = 0,
-        unreadMail: Int? = nil, unreadChats: Int = 0
+        unreadMail: Int? = nil, unreadChats: Int = 0, unreadMessages: Int = 0
     ) {
         self.nowPlaying = nowPlaying
         self.nextEvent = nextEvent
@@ -61,12 +66,13 @@ public struct LiveActivityInputs: Sendable, Equatable {
         self.activeAgents = activeAgents
         self.unreadMail = unreadMail
         self.unreadChats = unreadChats
+        self.unreadMessages = unreadMessages
     }
 }
 
 /// Chooses the single continuous item to keep in the notch (spec §2: one prioritized piece of
 /// information). Priority: waiting agent > imminent meeting > media > active agents > unread mail >
-/// unread chats. Unread counts also stay visible as small badges next to any other item
+/// unread chats > unread iMessages. Unread counts also stay visible as small badges next to any other item
 /// (`NotchBadges`), so a playing track never hides them.
 /// Items are P4 without expiry: any transient notification takes precedence, then the continuous
 /// item comes back.
@@ -100,6 +106,10 @@ public enum LiveActivityPlanner {
         if settings.chatBadge, inputs.unreadChats > 0 {
             return item(LiveActivityKey.chat, source: .chat, title: "Google Chat", subtitle: BadgeCount.text(inputs.unreadChats),
                         symbol: "bubble.left", now: now)
+        }
+        if settings.messagesBadge, inputs.unreadMessages > 0 {
+            return item(LiveActivityKey.messages, source: .chat, title: "iMessage", subtitle: BadgeCount.text(inputs.unreadMessages),
+                        symbol: "message", now: now)
         }
         return nil
     }

@@ -60,6 +60,10 @@ public struct GoogleAPI: Sendable {
         try await send(method: "POST", url: url, body: Data(json.compactString().utf8))
     }
 
+    public func patch(_ url: URL, json: JSONValue) async throws -> Data {
+        try await send(method: "PATCH", url: url, body: Data(json.compactString().utf8))
+    }
+
     func send(method: String, url: URL, body: Data?) async throws -> Data {
         var attempt = 0
         while true {

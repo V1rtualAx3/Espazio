@@ -419,6 +419,37 @@ final class GoogleAPITests: XCTestCase {
         XCTAssertTrue(answered.fresh.isEmpty, "the user's own message is never a notification")
     }
 
+    func testTasksParsingKeepsTheDueDay() throws {
+        var losAngeles = Calendar(identifier: .gregorian)
+        losAngeles.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let json = try JSONDecoder().decode(JSONValue.self, from: Data(#"""
+        {"items":[{"id":"t1","title":"Envoyer le devis","status":"needsAction","due":"2026-10-15T00:00:00.000Z","notes":"Client A"},
+                  {"id":"t2","title":"Sans date","status":"needsAction"},
+                  {"id":"t3","title":"Fait","status":"completed","due":"2026-10-14T00:00:00.000Z"}]}
+        """#.utf8))
+        let tasks = GoogleTasksService.parseTasks(json, listID: "L1", listName: "Perso", calendar: losAngeles)
+        XCTAssertEqual(tasks.map(\.id), ["gtask:L1/t1"], "only open tasks with a due date")
+        XCTAssertEqual(tasks.first?.listName, "Google Tasks · Perso")
+        XCTAssertEqual(tasks.first?.hasDueTime, false)
+        // Midnight UTC must stay October 15 even west of UTC (where it is still the 14th).
+        let day = losAngeles.dateComponents([.year, .month, .day], from: tasks.first!.due!)
+        XCTAssertEqual([day.year, day.month, day.day], [2026, 10, 15])
+        XCTAssertEqual(GoogleTasksService.split("gtask:L1/t1").map { [$0.0, $0.1] }, ["L1", "t1"])
+        XCTAssertNil(GoogleTasksService.split("x-apple-reminder://1"))
+    }
+
+    func testTaskCompletionPatchesStatus() async throws {
+        let http = FakeHTTP { request in
+            XCTAssertEqual(request.httpMethod, "PATCH")
+            XCTAssertEqual(request.url?.path, "/tasks/v1/lists/L1/tasks/t1")
+            XCTAssertEqual(String(data: request.httpBody ?? Data(), encoding: .utf8), #"{"status":"completed"}"#)
+            return (200, "{}", [:])
+        }
+        let api = GoogleAPI(auth: session(http, scopes: [GoogleScope.tasks]), http: http)
+        try await GoogleTasksService(api: api).complete(reminderID: "gtask:L1/t1")
+        XCTAssertEqual(http.requestCount, 1)
+    }
+
     func testPeopleNamesParsing() throws {
         let json = try JSONDecoder().decode(JSONValue.self, from: Data(#"""
         {"responses":[{"requestedResourceName":"people/1","person":{"names":[{"displayName":"Alice"}]}},

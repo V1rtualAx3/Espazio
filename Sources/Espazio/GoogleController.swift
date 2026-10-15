@@ -22,7 +22,7 @@ final class GoogleController {
     private var resumeTask: Task<Void, Never>?
 
     enum SyncKind: CaseIterable {
-        case chat, gmail, calendar
+        case chat, gmail, calendar, tasks
     }
     private var signInTask: Task<Void, Never>?
     /// ~13 requests a minute in steady state (12 Chat + 2 Gmail + Calendar), well within quotas.
@@ -37,7 +37,7 @@ final class GoogleController {
 
     private var state: EspazioState? { coordinator?.state }
     private var modules: ModuleSettings { state?.settings.modules ?? ModuleSettings() }
-    private var anyEnabled: Bool { modules.gmail || modules.googleChat || modules.googleCalendar }
+    private var anyEnabled: Bool { modules.gmail || modules.googleChat || modules.googleCalendar || modules.googleTasks }
 
     // MARK: - Lifecycle
 
@@ -65,6 +65,9 @@ final class GoogleController {
         if !modules.googleCalendar {
             coordinator?.googleEvents = []
             coordinator?.mergeEvents()
+        }
+        if !modules.googleTasks {
+            coordinator?.setGoogleTasks([])
         }
         start()
     }
@@ -110,6 +113,7 @@ final class GoogleController {
         case .chat: return 5
         case .gmail: return 30
         case .calendar: return state?.settings.googleSyncInterval ?? 180
+        case .tasks: return 60
         }
     }
 
@@ -118,6 +122,7 @@ final class GoogleController {
         case .chat: return modules.googleChat
         case .gmail: return modules.gmail
         case .calendar: return modules.googleCalendar
+        case .tasks: return modules.googleTasks
         }
     }
 
@@ -128,6 +133,7 @@ final class GoogleController {
         if modules.gmail { scopes.formUnion(GoogleScope.gmailRead) }
         if modules.googleChat { scopes.formUnion(GoogleScope.chatRead) }
         if modules.googleCalendar { scopes.insert(GoogleScope.calendarEventsReadonly) }
+        if modules.googleTasks { scopes.insert(GoogleScope.tasksReadonly) }
         return scopes.isEmpty ? GoogleScope.gmailRead : scopes
     }
 
@@ -201,6 +207,7 @@ final class GoogleController {
             state.googleAccount = nil
             self.coordinator?.googleEvents = []
             self.coordinator?.mergeEvents()
+            self.coordinator?.setGoogleTasks([])
             self.gmailMonitor = nil
             self.setStatuses(.disconnected)
         }
@@ -243,13 +250,15 @@ final class GoogleController {
                 let now = Date()
                 coordinator?.googleEvents = try await GoogleCalendarService(api: api).upcomingEvents(from: now, to: now.addingTimeInterval(24 * 3600))
                 coordinator?.mergeEvents()
+            case .tasks:
+                coordinator?.setGoogleTasks(try await GoogleTasksService(api: api).openTasks())
             }
         } catch {
             failure = handle(error, attempt: attempts[kind] ?? 0) { status in
                 switch kind {
                 case .gmail: self.state?.gmailStatus = status
                 case .chat: self.state?.chatStatus = status
-                case .calendar: break
+                case .calendar, .tasks: break
                 }
             }
         }
@@ -339,6 +348,24 @@ final class GoogleController {
         state.mail.removeAll { $0.id == mail.id }
         state.unreadCount = state.unreadCount.map { max(0, $0 - 1) }
         coordinator?.refreshLiveActivity()
+    }
+
+    /// Completes a Google task; asks for the `tasks` scope the first time (progressive consent).
+    func completeTask(id: String) {
+        guard let session else { return }
+        let http = self.http
+        Task { [weak self] in
+            guard await session.grants(GoogleScope.tasks) else {
+                self?.connect(extraScopes: [GoogleScope.tasks])
+                return
+            }
+            do {
+                try await GoogleTasksService(api: GoogleAPI(auth: session, http: http)).complete(reminderID: id)
+                self?.coordinator?.dropGoogleTask(id: id)
+            } catch {
+                self?.coordinator?.showError((error as? GoogleAPIError)?.message ?? "Impossible de terminer la tâche.")
+            }
+        }
     }
 
     func markRead(_ mail: MailSummary) {

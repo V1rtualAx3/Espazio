@@ -69,7 +69,8 @@ la prochaine réunion, agents IA actifs, e-mails non lus. Une seule information 
 ### Productivité
 
 - **Calendrier** : prochain événement, compte à rebours, bouton pour rejoindre Meet / Zoom / Teams.
-- **Rappels** : du jour et en retard, création et accomplissement.
+- **Rappels et Google Tasks** : du jour et en retard, création et accomplissement.
+- **iMessage** : nombre de messages non lus (badge de l’app Messages, sans lire leur contenu).
 - **Gmail** : non-lus, aperçu, marquer comme lu, archiver ; badge discret dans la notch.
 - **Google Chat** (Workspace) : conversations non lues et badge dans la notch ; on lit et répond dans Google Chat.
 - **Actions rapides** <kbd>⌃</kbd><kbd>⌥</kbd><kbd>Espace</kbd> : recherche locale, et `+ appeler Paul demain 9h`

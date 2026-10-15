@@ -103,11 +103,11 @@ struct PeekView: View {
     }
 
     private var isCounterItem: Bool {
-        item.coalescingKey == LiveActivityKey.mail || item.coalescingKey == LiveActivityKey.chat
+        [LiveActivityKey.mail, LiveActivityKey.chat, LiveActivityKey.messages].contains(item.coalescingKey)
     }
 
-    /// Unread counters shown on their own: one per wing (e-mail left, Chat right), or icon left and
-    /// count right when there is only one, always in the same style.
+    /// Unread counters shown on their own: the first on the left wing, the others on the right
+    /// (e-mail, Chat, iMessage), or icon left and count right when there is only one.
     private var counters: [UnreadCounter] { UnreadCounter.all(in: state) }
 
     @ViewBuilder
@@ -138,7 +138,9 @@ struct PeekView: View {
         if isCounterItem {
             let counters = self.counters
             if counters.count >= 2 {
-                CounterLabel(counter: counters[1])
+                HStack(spacing: 10) {
+                    ForEach(counters.dropFirst(), id: \.key) { CounterLabel(counter: $0) }
+                }
             } else if let only = counters.first {
                 CounterCount(count: only.count)
             }
@@ -207,6 +209,9 @@ struct UnreadCounter: Equatable {
         if modules.googleChat, live.chatBadge, !state.chatUnread.isEmpty {
             counters.append(UnreadCounter(
                 symbol: "bubble.left", count: state.chatUnread.count, label: "conversations Chat non lues", key: LiveActivityKey.chat))
+        }
+        if modules.iMessage, live.messagesBadge, let messages = state.messagesUnread, messages > 0 {
+            counters.append(UnreadCounter(symbol: "message", count: messages, label: "iMessages non lus", key: LiveActivityKey.messages))
         }
         return counters
     }

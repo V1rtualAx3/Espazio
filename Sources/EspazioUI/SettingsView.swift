@@ -91,6 +91,8 @@ public struct SettingsView: View {
                     .disabled(!state.settings.modules.gmail)
                 Toggle("Badge des nouveaux messages Google Chat", isOn: binding(\.live.chatBadge))
                     .disabled(!state.settings.modules.googleChat)
+                Toggle("Badge des iMessages non lus", isOn: binding(\.live.messagesBadge))
+                    .disabled(!state.settings.modules.iMessage)
             } header: {
                 Text("Affichage continu (notch au repos)")
             } footer: {
@@ -157,6 +159,18 @@ public struct SettingsView: View {
                 Toggle("Rappels", isOn: binding(\.modules.reminders))
                 accessRow("Accès Rappels", state.remindersAccess, request: actions.requestRemindersAccess, pane: "Privacy_Reminders")
             }
+            Section {
+                Toggle("iMessage : nombre de messages non lus", isOn: binding(\.modules.iMessage))
+                if state.settings.modules.iMessage, state.messagesNeedsPermission {
+                    LabeledContent("Accès Accessibilité") {
+                        Button("Ouvrir les Réglages Système") { actions.openPrivacySettings("Privacy_Accessibility") }
+                    }
+                }
+            } header: {
+                Text("Messages")
+            } footer: {
+                Text("Apple ne propose pas d’API iMessage : Espazio lit seulement le nombre affiché sur l’icône Messages du Dock (permission Accessibilité), jamais le contenu des messages.")
+            }
         }
         .formStyle(.grouped)
     }
@@ -217,8 +231,9 @@ public struct SettingsView: View {
                 LabeledContent("Google Chat", value: statusText(state.chatStatus))
                 Toggle("Google Agenda direct (si non synchronisé dans Calendrier)", isOn: binding(\.modules.googleCalendar))
                 Slider(value: binding(\.googleSyncInterval), in: 60...1800, step: 60) {
-                    Text("Synchronisation toutes les \(Int(state.settings.googleSyncInterval / 60)) min")
+                    Text("Google Agenda : synchronisation toutes les \(Int(state.settings.googleSyncInterval / 60)) min")
                 }
+                Toggle("Google Tasks (tâches du jour et en retard, avec les rappels)", isOn: binding(\.modules.googleTasks))
             }
             if let lastError {
                 Section { Text(lastError).font(.caption).foregroundStyle(.secondary) }

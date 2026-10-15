@@ -11,6 +11,7 @@ struct HomeTab: View {
     private var showsMedia: Bool { state.settings.modules.media }
     private var showsAgenda: Bool {
         state.settings.modules.calendar || state.settings.modules.googleCalendar || state.settings.modules.reminders
+            || state.settings.modules.googleTasks
     }
 
     var body: some View {
@@ -121,7 +122,14 @@ struct NowPlayingSection: View {
         .frame(width: 64, height: 64)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(EZColor.notchStroke, lineWidth: EZMetrics.hairline))
-        .accessibilityHidden(true)
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onTapGesture { actions.openMediaApp() }
+        .help("Ouvrir \(state.mediaPlayerName)")
+        .accessibilityElement()
+        .accessibilityLabel("Pochette")
+        .accessibilityHint("Ouvre \(state.mediaPlayerName)")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { actions.openMediaApp() }
     }
 
     private func control(_ symbol: String, _ label: String, size: CGFloat, action: @escaping () -> Void) -> some View {
@@ -199,7 +207,7 @@ struct AgendaSection: View {
             if state.settings.modules.calendar || state.settings.modules.googleCalendar {
                 event
             }
-            if state.settings.modules.reminders {
+            if state.settings.modules.reminders || state.settings.modules.googleTasks {
                 reminders
             }
             Spacer(minLength: 0)
@@ -223,9 +231,12 @@ struct AgendaSection: View {
         }
     }
 
+    /// Reminders (EventKit) and Google Tasks due today or overdue, in one list.
     @ViewBuilder
     private var reminders: some View {
-        switch state.remindersAccess {
+        let modules = state.settings.modules
+        let listReady = !modules.reminders || state.remindersAccess == .granted || modules.googleTasks
+        switch listReady ? .granted : state.remindersAccess {
         case .granted:
             let all = state.reminders.overdue + state.reminders.today
             if all.isEmpty {

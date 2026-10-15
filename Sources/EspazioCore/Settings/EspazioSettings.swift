@@ -70,6 +70,10 @@ public struct ModuleSettings: Sendable, Codable, Equatable {
     public var googleChat = false
     /// Direct Google Calendar API: only when the account is not synced in macOS Calendar.
     public var googleCalendar = false
+    /// Google Tasks due today or overdue, shown with the reminders.
+    public var googleTasks = false
+    /// Unread count from the Messages app's Dock badge (requires the Accessibility permission).
+    public var iMessage = false
     public var claudeCode = true
     public var codex = true
     public var chatGPT = false
@@ -92,6 +96,8 @@ public struct ModuleSettings: Sendable, Codable, Equatable {
         gmail = try c.decodeIfPresent(Bool.self, forKey: .gmail) ?? d.gmail
         googleChat = try c.decodeIfPresent(Bool.self, forKey: .googleChat) ?? d.googleChat
         googleCalendar = try c.decodeIfPresent(Bool.self, forKey: .googleCalendar) ?? d.googleCalendar
+        googleTasks = try c.decodeIfPresent(Bool.self, forKey: .googleTasks) ?? d.googleTasks
+        iMessage = try c.decodeIfPresent(Bool.self, forKey: .iMessage) ?? d.iMessage
         claudeCode = try c.decodeIfPresent(Bool.self, forKey: .claudeCode) ?? d.claudeCode
         codex = try c.decodeIfPresent(Bool.self, forKey: .codex) ?? d.codex
         chatGPT = try c.decodeIfPresent(Bool.self, forKey: .chatGPT) ?? d.chatGPT

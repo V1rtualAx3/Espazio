@@ -19,6 +19,9 @@ public enum GoogleScope {
     /// Names of the people in the organization (the Chat API returns user IDs only).
     public static let directoryReadonly = "https://www.googleapis.com/auth/directory.readonly"
     public static let calendarEventsReadonly = "https://www.googleapis.com/auth/calendar.events.readonly"
+    public static let tasksReadonly = "https://www.googleapis.com/auth/tasks.readonly"
+    /// Requested the first time a task is completed from Espazio (progressive consent).
+    public static let tasks = "https://www.googleapis.com/auth/tasks"
 
     public static let gmailRead: Set<String> = [gmailReadonly]
     public static let chatRead: Set<String> = [

@@ -100,6 +100,8 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(LiveActivityPlanner.select(.init(unreadMail: 0, unreadChats: 2), settings: settings, now: now)?.coalescingKey,
                        LiveActivityKey.chat)
         XCTAssertEqual(LiveActivityPlanner.select(.init(unreadMail: 250), settings: settings, now: now)?.subtitle, "99+")
+        XCTAssertEqual(LiveActivityPlanner.select(.init(unreadMessages: 2), settings: settings, now: now)?.coalescingKey,
+                       LiveActivityKey.messages)
         settings.mailBadge = false
         XCTAssertNil(LiveActivityPlanner.select(.init(unreadMail: 3), settings: settings, now: now))
 
