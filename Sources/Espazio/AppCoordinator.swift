@@ -93,6 +93,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         state.launchAtLogin = LaunchAtLogin.isEnabled
         updates.includesBetas = state.settings.betaUpdates
         state.updatesConfigured = updates.isConfigured
+        updates.onStatus = { [weak self] status in self?.state.updateStatus = status }
         state.automaticUpdateChecks = updates.automaticallyChecks
         statusItem = StatusItemController(coordinator: self)
         quickActions.onExecute = { [weak self] item in self?.perform(item) }

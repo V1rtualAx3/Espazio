@@ -133,6 +133,9 @@ public struct SettingsView: View {
                         get: { state.automaticUpdateChecks }, set: { actions.setAutomaticUpdateChecks($0) }))
                     Toggle("Recevoir les versions bêta", isOn: binding(\.betaUpdates))
                     Button("Rechercher maintenant") { actions.checkForUpdates() }
+                    if let status = state.updateStatus {
+                        Text(status).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                    }
                 } else {
                     Text("Mises à jour automatiques non configurées pour ce build (voir docs/UPDATES.md).")
                         .font(.caption).foregroundStyle(.secondary)

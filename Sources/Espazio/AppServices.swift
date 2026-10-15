@@ -1,4 +1,5 @@
 import AppKit
+import os
 import ServiceManagement
 import Sparkle
 
@@ -58,9 +59,26 @@ final class UpdateController {
         set { controller?.updater.automaticallyChecksForUpdates = newValue }
     }
 
+    /// Outcome of the last check, shown under « Rechercher maintenant » (the Sparkle windows can
+    /// open behind other apps, and an error would otherwise go unnoticed).
+    var onStatus: (@MainActor (String) -> Void)? {
+        didSet {
+            let report = onStatus
+            channels.onStatus = { status in
+                DispatchQueue.main.async { MainActor.assumeIsolated { report?(status) } }
+            }
+        }
+    }
+
     func checkForUpdates() {
+        guard let controller else { return }
+        guard controller.updater.canCheckForUpdates else {
+            onStatus?("Une vérification est déjà en cours.")
+            return
+        }
+        onStatus?("Recherche en cours…")
         NSApp.activate()
-        controller?.checkForUpdates(nil)
+        controller.checkForUpdates(nil)
     }
 }
 
@@ -74,7 +92,40 @@ final class UpdateChannels: NSObject, SPUUpdaterDelegate, @unchecked Sendable {
         set { lock.withLock { betas = newValue } }
     }
 
+    /// Called from Sparkle's callbacks with a user-facing status.
+    var onStatus: (@Sendable (String) -> Void)? {
+        get { lock.withLock { status } }
+        set { lock.withLock { status = newValue } }
+    }
+
+    private var status: (@Sendable (String) -> Void)?
+    private static let log = Logger(subsystem: "app.espazio", category: "updates")
+
     func allowedChannels(for updater: SPUUpdater) -> Set<String> {
         includesBetas ? ["beta"] : []
+    }
+
+    func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
+        Self.log.info("update found: \(item.displayVersionString, privacy: .public) (\(item.versionString, privacy: .public))")
+        onStatus?("Version \(item.displayVersionString) disponible.")
+    }
+
+    func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: any Error) {
+        Self.log.info("no update: \(error.localizedDescription, privacy: .public)")
+        onStatus?("Espazio est à jour (\(Self.checkedAt())).")
+    }
+
+    func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
+        Self.log.error("update aborted: \(String(describing: error), privacy: .public)")
+        onStatus?("Échec de la mise à jour : \(error.localizedDescription)")
+    }
+
+    func updater(_ updater: SPUUpdater, failedToDownloadUpdate item: SUAppcastItem, error: any Error) {
+        Self.log.error("download failed: \(String(describing: error), privacy: .public)")
+        onStatus?("Téléchargement impossible : \(error.localizedDescription)")
+    }
+
+    private static func checkedAt() -> String {
+        Date().formatted(date: .omitted, time: .shortened)
     }
 }

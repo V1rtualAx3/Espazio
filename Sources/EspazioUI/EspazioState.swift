@@ -89,6 +89,8 @@ public final class EspazioState {
     public var launchAtLogin = false
     public var updatesConfigured = false
     public var automaticUpdateChecks = false
+    /// Outcome of the last update check (« Espazio est à jour », error…).
+    public var updateStatus: String?
 
     // System
     public var capsLock: Observed<Bool> = .unavailable(reason: "Non observé")
