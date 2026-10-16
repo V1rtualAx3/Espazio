@@ -600,7 +600,8 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
             createdAt: now, expiresAt: event.start.addingTimeInterval(60)))
     }
 
-    /// The meeting starts now: the countdown gives way to a notice that animates the notch.
+    /// The meeting starts now: the countdown gives way to a notice that animates the notch until
+    /// the user clicks it (which joins the meeting) or for 5 min.
     private func notifyEventStart(_ event: CalendarEvent, now: Date) {
         if notifiedSchedule.count > 500 { notifiedSchedule.removeAll() }
         notifiedSchedule.insert("start:\(event.id)")
@@ -608,7 +609,7 @@ final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
         post(ActivityItem(
             source: .calendar, priority: .p1, coalescingKey: "\(PeekKeys.eventStart)\(event.id)", title: event.title,
             subtitle: "Maintenant", symbol: event.meetingURL == nil ? "calendar" : "video.fill",
-            reference: event.id, createdAt: now, expiresAt: now.addingTimeInterval(20)))
+            reference: event.id, createdAt: now, expiresAt: now.addingTimeInterval(300)))
     }
 
     private func notifyReminder(_ reminder: ReminderItem, now: Date) {

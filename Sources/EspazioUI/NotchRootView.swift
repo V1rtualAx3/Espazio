@@ -52,25 +52,36 @@ public struct NotchRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(EZMotion.spring(reduceMotion: reduceMotion), value: notchState)
         .onChange(of: state.peek?.coalescingKey) { _, key in
-            if let key, key.hasPrefix(PeekKeys.eventStart) { bounceForEventStart() }
+            if let key, key.hasPrefix(PeekKeys.eventStart) {
+                bounceForEventStart()
+            } else {
+                bounceTask?.cancel()
+                bounce = false
+            }
         }
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Espazio")
     }
 
-    /// Three quick bounces so the start of a meeting cannot go unnoticed (the glow alone with
-    /// Reduce Motion).
+    /// Bursts of bounces so the start of a meeting cannot go unnoticed: five at once, then three
+    /// every 30 s while the notice stays (until a click or 5 min). The glow alone with Reduce
+    /// Motion.
     private func bounceForEventStart() {
         guard !reduceMotion else { return }
         bounceTask?.cancel()
         bounceTask = Task { @MainActor in
-            for _ in 0..<3 {
-                withAnimation(.spring(response: 0.22, dampingFraction: 0.45)) { bounce = true }
-                try? await Task.sleep(nanoseconds: 260_000_000)
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { bounce = false }
-                try? await Task.sleep(nanoseconds: 420_000_000)
-                if Task.isCancelled { break }
+            var count = 5
+            while !Task.isCancelled, state.peek?.coalescingKey.hasPrefix(PeekKeys.eventStart) == true {
+                for _ in 0..<count {
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.45)) { bounce = true }
+                    try? await Task.sleep(nanoseconds: 260_000_000)
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { bounce = false }
+                    try? await Task.sleep(nanoseconds: 420_000_000)
+                    if Task.isCancelled { break }
+                }
+                count = 3
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
             }
             bounce = false
         }
@@ -349,7 +360,8 @@ struct NotchBadges: View {
     }
 }
 
-/// Pulsing white outline along the notch edge while the meeting-start notice is shown.
+/// Pulsing white outline along the sides and bottom of the notch (not the top edge, which merges
+/// into the menu bar) while the meeting-start notice is shown.
 struct EventStartGlow: View {
     let topRadius: CGFloat
     let bottomRadius: CGFloat
@@ -357,16 +369,19 @@ struct EventStartGlow: View {
     @State private var lit = false
 
     var body: some View {
-        NotchShape(topRadius: topRadius, bottomRadius: bottomRadius)
-            .stroke(EZColor.notchPrimary, lineWidth: 3)
+        NotchShape(topRadius: topRadius, bottomRadius: bottomRadius, closedTop: false)
+            .stroke(EZColor.notchPrimary, style: StrokeStyle(lineWidth: 3, lineCap: .round))
             .blur(radius: 1.5)
-            .opacity(lit ? 0.9 : 0.15)
+            // Fades in from the top so the outline grows out of the menu bar.
+            .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .white, location: 0.45)],
+                                 startPoint: .top, endPoint: .bottom))
+            .opacity(lit ? 0.9 : 0.2)
             .allowsHitTesting(false)
             .onAppear {
                 if reduceMotion {
                     lit = true
                 } else {
-                    withAnimation(.easeInOut(duration: 0.6).repeatCount(9, autoreverses: true)) { lit = true }
+                    withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { lit = true }
                 }
             }
     }
