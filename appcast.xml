@@ -6,6 +6,17 @@
     <description>Mises à jour d’Espazio</description>
     <language>fr</language>
     <item>
+      <title>Espazio 1.0.0-beta.22</title>
+      <pubDate>Fri, 16 Oct 2026 08:45:38 GMT</pubDate>
+      <sparkle:version>112</sparkle:version>
+      <sparkle:shortVersionString>1.0.0-beta.22</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:fullReleaseNotesLink>https://github.com/V1rtualAx3/Espazio/releases/tag/v1.0.0-beta.22</sparkle:fullReleaseNotesLink>
+      <description>&lt;p&gt;Espazio 1.0.0-beta.22. &lt;a href="https://github.com/V1rtualAx3/Espazio/releases/tag/v1.0.0-beta.22"&gt;Notes de version&lt;/a&gt;&lt;/p&gt;</description>
+      <enclosure url="https://github.com/V1rtualAx3/Espazio/releases/download/v1.0.0-beta.22/Espazio-1.0.0-beta.22.dmg" length="3195736" type="application/x-apple-diskimage" sparkle:edSignature="xcSDEvDBPrKD/oDcU6RNINoXRmnuIENQGXtIMs/ncFW6lQpXG7ke4APNrzk44Hkl6qLbRjtAHMNN3igmVr18Ag==" />
+    </item>
+    <item>
       <title>Espazio 1.0.0-beta.21</title>
       <pubDate>Fri, 16 Oct 2026 08:10:21 GMT</pubDate>
       <sparkle:version>110</sparkle:version>
