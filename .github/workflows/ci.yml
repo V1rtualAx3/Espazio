@@ -1,0 +1,117 @@
+name: CI
+
+# macOS minutes count ten times against the Actions quota: each commit is built once (push run;
+# pull_request runs only for forks, whose pushes do not run here), and the installers are built
+# only by the release job, when a version is published.
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths-ignore: ["docs/**", "**/*.md", "Resources/Brand/**"]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only by default (public repository); the release job asks for what it needs.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  # Never cancel a push run: it may be publishing a release.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  commits:
+    name: Commits (Conventional Commits)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install commitlint
+        run: npm install --no-save --no-package-lock --no-audit --no-fund @commitlint/cli@19 @commitlint/config-conventional@19
+      - name: Lint commit messages
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            FROM="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            FROM="${{ github.event.before }}"
+          else
+            git fetch --no-tags origin main
+            FROM="$(git merge-base origin/main HEAD)"
+          fi
+          # A new branch or a force push may report an unknown "before": fall back to main.
+          git cat-file -e "$FROM^{commit}" 2>/dev/null || FROM="$(git merge-base origin/main HEAD)"
+          npx commitlint --from "$FROM" --to HEAD --verbose
+
+  linux-core:
+    name: Core logic (Linux)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    container: swift:6.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test
+
+  macos-app:
+    name: App (macOS)
+    runs-on: macos-15
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test
+      # Installers (.dmg, .pkg) are built, smoke-tested and attached by the release job, only
+      # when semantic-release publishes a version.
+
+  release:
+    name: Release (semantic-release)
+    needs: [commits, linux-core, macos-app]
+    if: github.event_name == 'push'
+    runs-on: macos-15
+    # One release at a time across all branches: two branches computing the next
+    # beta concurrently would both pick the same tag.
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install semantic-release
+        run: npm install --no-save --no-package-lock --no-audit --no-fund semantic-release@24 @semantic-release/exec@6 @semantic-release/changelog@6 @semantic-release/git@10 conventional-changelog-conventionalcommits@8
+      - name: Signing identity (self-signed, stable across builds; ad-hoc if not configured)
+        env:
+          MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
+        run: scripts/import-signing-identity.sh
+      - name: Move existing betas to the shared beta channel
+        run: scripts/normalize-beta-channels.sh
+      - name: Publish version (beta on work branches, release on main)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs Sparkle updates (scripts/update-appcast.sh); absent → no in-app updates.
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: npx semantic-release

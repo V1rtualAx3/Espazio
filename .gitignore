@@ -1,0 +1,10 @@
+.build/
+.build-linux/
+build/
+.swiftpm/
+xcuserdata/
+*.xcodeproj/xcuserdata/
+DerivedData/
+.DS_Store
+__pycache__/
+node_modules/

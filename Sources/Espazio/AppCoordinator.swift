@@ -1,0 +1,991 @@
+import AgentIntegrations
+import AppKit
+import EspazioBridge
+import EspazioCore
+import EspazioUI
+import GoogleProvider
+import ProductivityProviders
+import SystemServices
+
+/// Central coordinator: single source of truth (`EspazioState`), activity routing, module
+/// lifecycle and every user action. Lives on the main actor; heavy work happens in actors and
+/// providers.
+@MainActor
+final class AppCoordinator: EspazioActions, SettingsActions, WelcomeActions {
+    static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+    static let supportDirectory: URL = {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
+        return base.appendingPathComponent("Espazio", isDirectory: true)
+    }()
+
+    let state = EspazioState()
+    let launchDate = Date()
+    private var router = ActivityRouter()
+    private var expiryTimer: Timer?
+    private var scheduleTimer: Timer?
+    private var liveTimer: Timer?
+
+    // Modules
+    let media = MediaHub()
+    let audio = AudioMonitor()
+    let power = PowerMonitor()
+    let keyboard = KeyboardMonitor()
+    private var bluetooth: BluetoothMonitor?
+    private var messagesBadge: DockBadgeMonitor?
+    private var countdownTimer: Timer?
+    /// Last playing track, kept on screen for a few seconds after a pause or a stop: players
+    /// briefly report "paused" / nothing between two tracks, which made the media blink.
+    private var lastPlaying: NowPlaying?
+    private var mediaGraceUntil: Date?
+    private var mediaGraceTimer: Timer?
+    static let mediaGrace: TimeInterval = 8
+    private var clipboardMonitor: ClipboardMonitor?
+    private var clipboardHistory = ClipboardHistory()
+    private var screenObserver: NSObjectProtocol?
+    let eventKit = EventKitProvider()
+    var eventKitEvents: [CalendarEvent] = []
+    var googleEvents: [CalendarEvent] = []
+    private var eventKitReminders: [ReminderItem] = []
+    private var googleTasks: [ReminderItem] = []
+    var remindersAll: [ReminderItem] = []
+    private var notifiedSchedule: Set<String> = []
+
+    // Agents
+    let audit: AuditLog
+    let approvals: ApprovalCenter
+    var sessionStore = AgentSessionStore()
+    var bridge: BridgeServer?
+    var codexClient: CodexAppServerClient?
+    var codexTransport: ProcessLineTransport?
+    var codexIdleTask: Task<Void, Never>?
+    private var approvalsTask: Task<Void, Never>?
+    private var postedApprovalIDs: Set<String> = []
+    var chatGPTObservers: [NSObjectProtocol] = []
+
+    // Google
+    var google: GoogleController?
+
+    // UI
+    private(set) var display: DisplayManager!
+    private var statusItem: StatusItemController?
+    let quickActions = QuickActionsController()
+    private(set) var settingsWindow: SettingsWindowController!
+    private var welcomeWindow: WelcomeWindowController?
+    private let hotKeys = HotKeyCenter()
+    let updates = UpdateController()
+    private var workspaceObservers: [NSObjectProtocol] = []
+
+    private static let settingsKey = "settings.v1"
+
+    init() {
+        let audit = AuditLog(fileURL: Self.supportDirectory.appendingPathComponent("audit.log"))
+        self.audit = audit
+        approvals = ApprovalCenter(audit: { event in audit.record(event) })
+        state.settings = EspazioSettings.decode(UserDefaults.standard.data(forKey: Self.settingsKey))
+        display = DisplayManager(state: state, coordinator: self)
+        settingsWindow = SettingsWindowController(state: state, actions: self)
+    }
+
+    // MARK: - Lifecycle
+
+    func start() {
+        state.launchAtLogin = LaunchAtLogin.isEnabled
+        updates.includesBetas = state.settings.betaUpdates
+        state.updatesConfigured = updates.isConfigured
+        updates.onStatus = { [weak self] status in self?.state.updateStatus = status }
+        state.automaticUpdateChecks = updates.automaticallyChecks
+        statusItem = StatusItemController(coordinator: self)
+        quickActions.onExecute = { [weak self] item in self?.perform(item) }
+        applyPolicy()
+        startSystemModules()
+        startProductivity()
+        startAgents()
+        google = GoogleController(coordinator: self)
+        google?.start()
+        registerHotKeys()
+        observeSleep()
+        display.start()
+        if !state.settings.hasCompletedOnboarding {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.showWelcome() }
+        }
+    }
+
+    func shutdown() {
+        bridge?.stop()
+        codexTransport?.close()
+        google?.stop()
+        audio.stop()
+        power.stop()
+        keyboard.stop()
+        bluetooth?.stop()
+        messagesBadge?.stop()
+        clipboardMonitor?.stop()
+        countdownTimer?.invalidate()
+        // A normal quit is not a crash during the Bluetooth start-up.
+        UserDefaults.standard.removeObject(forKey: Self.bluetoothStartingKey)
+        media.stopAll()
+        eventKit.stop()
+        display.stop()
+        audit.flush()
+    }
+
+    private func observeSleep() {
+        let center = NSWorkspace.shared.notificationCenter
+        workspaceObservers.append(center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.google?.pause() }
+        })
+        workspaceObservers.append(center.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.google?.resume(after: 10)
+                self?.eventKit.reloadAll()
+                self?.rescheduleTimers()
+            }
+        })
+    }
+
+    // MARK: - Settings
+
+    func updateSettings(_ newValue: EspazioSettings) {
+        let old = state.settings
+        let settings = newValue.normalized()
+        guard settings != old else { return }
+        state.settings = settings
+        UserDefaults.standard.set(settings.encoded(), forKey: Self.settingsKey)
+        applyPolicy()
+        updates.includesBetas = settings.betaUpdates
+        if settings.displayMode != old.displayMode || settings.hideOverFullScreen != old.hideOverFullScreen {
+            display.rebuild()
+        }
+        if settings.modules != old.modules {
+            restartModules(old: old.modules, new: settings.modules)
+        }
+        if settings.live != old.live || settings.modules != old.modules {
+            refreshLiveActivity()
+        }
+        if settings.googleSyncInterval != old.googleSyncInterval || settings.googleClientID != old.googleClientID {
+            google?.restart()
+        }
+        if settings.quickActionsShortcut != old.quickActionsShortcut || settings.toggleNotchShortcut != old.toggleNotchShortcut {
+            registerHotKeys()
+        }
+    }
+
+    private func restartModules(old: ModuleSettings, new: ModuleSettings) {
+        if old.media != new.media || old.spotify != new.spotify || old.appleMusic != new.appleMusic {
+            new.media ? media.configure(spotify: new.spotify, appleMusic: new.appleMusic) : stopMedia()
+        }
+        if old.volume != new.volume || old.audioDevice != new.audioDevice {
+            (new.volume || new.audioDevice) ? audio.start() : audio.stop()
+        }
+        if old.battery != new.battery { new.battery ? power.start() : power.stop() }
+        if old.keyboard != new.keyboard { new.keyboard ? keyboard.start() : keyboard.stop() }
+        if old.bluetooth != new.bluetooth { configureBluetooth(new.bluetooth) }
+        if old.iMessage != new.iMessage { configureMessages(new.iMessage) }
+        if old.clipboard != new.clipboard { configureClipboard(new.clipboard) }
+        if old.calendar != new.calendar || old.reminders != new.reminders {
+            eventKit.eventsEnabled = new.calendar
+            eventKit.remindersEnabled = new.reminders
+            eventKit.reloadAll()
+        }
+        if old.claudeCode != new.claudeCode || old.codex != new.codex { configureBridge() }
+        if old.chatGPT != new.chatGPT { configureChatGPT() }
+        if old.gmail != new.gmail || old.googleChat != new.googleChat || old.googleCalendar != new.googleCalendar
+            || old.googleTasks != new.googleTasks {
+            google?.restart()
+        }
+        for source in new.mutedSources { router.dismissAll(from: source) }
+        publish()
+    }
+
+    private func applyPolicy() {
+        let settings = state.settings
+        router.policy.mode = settings.focusMode
+        router.policy.mutedSources = settings.modules.mutedSources
+        if !settings.contextualFocus { router.policy.context = FocusContext() }
+        publish()
+    }
+
+    func updateFocusContext(isFullScreen: Bool? = nil, isInMeeting: Bool? = nil, isPresenting: Bool? = nil) {
+        guard state.settings.contextualFocus else { return }
+        var context = router.policy.context
+        if let isFullScreen { context.isFullScreen = isFullScreen }
+        if let isInMeeting { context.isInMeeting = isInMeeting }
+        if let isPresenting { context.isPresenting = isPresenting }
+        guard context != router.policy.context else { return }
+        router.policy.context = context
+        publish()
+    }
+
+    // MARK: - Activities
+
+    func post(_ item: ActivityItem) {
+        let outcome = router.post(item, now: Date())
+        switch outcome {
+        case .muted, .duplicate:
+            return
+        default:
+            publish()
+        }
+    }
+
+    func dismissActivity(key: String) {
+        if router.dismiss(coalescingKey: key) != nil { publish() }
+    }
+
+    /// Pushes the router state to the UI and schedules the single expiry timer.
+    func publish() {
+        _ = router.expire(now: Date())
+        // In silent mode nothing peeks: pending decisions show as a dot under the collapsed notch.
+        let peek = router.peekCandidate
+        if state.peek != peek { state.peek = peek }
+        state.activityCount = router.items.count
+        state.pendingDecisionCount = router.pendingDecisionCount
+        display?.syncPeek()
+        scheduleExpiry()
+    }
+
+    private func scheduleExpiry() {
+        expiryTimer?.invalidate()
+        guard let next = router.nextExpiry else { return }
+        let timer = Timer(fire: next.addingTimeInterval(0.01), interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.publish() }
+        }
+        timer.tolerance = 0.1
+        RunLoop.main.add(timer, forMode: .common)
+        expiryTimer = timer
+    }
+
+    /// Tab to open when the user expands the notch from a peek.
+    func preferredTab() -> NotchTab {
+        if !state.pendingRequests.isEmpty { return .agents }
+        switch state.peek?.source {
+        case .agents: return .agents
+        case .mail where state.visibleTabs.contains(.mail): return .mail
+        case .chat where state.visibleTabs.contains(.chat): return .chat
+        default: return .home
+        }
+    }
+
+    // MARK: - System modules
+
+    private func startSystemModules() {
+        let modules = state.settings.modules
+        audio.onEvent = { [weak self] event in self?.handleSystem(event) }
+        power.onEvent = { [weak self] event in self?.handleSystem(event) }
+        keyboard.onEvent = { [weak self] event in self?.handleSystem(event) }
+        if modules.volume || modules.audioDevice { audio.start() }
+        state.outputDeviceName = audio.currentDeviceName
+        if modules.battery { power.start() }
+        state.power = power.status
+        if modules.keyboard { keyboard.start() }
+        state.capsLock = modules.keyboard ? .value(keyboard.capsLockOn) : .unavailable(reason: "Module désactivé")
+        configureBluetooth(modules.bluetooth)
+        configureMessages(modules.iMessage)
+        configureClipboard(modules.clipboard)
+        observePresentation()
+
+        media.onChange = { [weak self] playing, name in
+            self?.state.mediaPlayerName = name
+            self?.handleNowPlaying(playing)
+        }
+        media.onArtwork = { [weak self] image in self?.state.artwork = image }
+        if modules.media { media.configure(spotify: modules.spotify, appleMusic: modules.appleMusic) }
+        state.mediaAvailable = media.isAnyRunning
+    }
+
+    /// Set while the Bluetooth module starts; still set at the next launch means the app died
+    /// there, and the module is turned off instead of crashing again at every launch.
+    private static let bluetoothStartingKey = "bluetooth.starting"
+
+    private func configureBluetooth(_ enabled: Bool) {
+        let defaults = UserDefaults.standard
+        if enabled, defaults.bool(forKey: Self.bluetoothStartingKey) {
+            defaults.removeObject(forKey: Self.bluetoothStartingKey)
+            var settings = state.settings
+            settings.modules.bluetooth = false
+            updateSettings(settings)
+            showError("Bluetooth désactivé : Espazio s’est arrêté pendant son démarrage. Vous pouvez le réactiver dans les réglages.")
+            return
+        }
+        if enabled {
+            defaults.set(true, forKey: Self.bluetoothStartingKey)
+            let monitor = bluetooth ?? BluetoothMonitor()
+            monitor.onEvent = { [weak self] event in self?.handleSystem(event) }
+            monitor.start()
+            bluetooth = monitor
+            // Connect notifications for already-connected devices arrive within the first seconds.
+            Task {
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                defaults.removeObject(forKey: Self.bluetoothStartingKey)
+            }
+        } else {
+            bluetooth?.stop()
+            bluetooth = nil
+        }
+    }
+
+    /// Unread iMessages from the Messages Dock badge (no content is read).
+    private func configureMessages(_ enabled: Bool) {
+        guard enabled else {
+            messagesBadge?.stop()
+            messagesBadge = nil
+            state.messagesUnread = nil
+            state.messagesNeedsPermission = false
+            refreshLiveActivity()
+            return
+        }
+        let monitor = messagesBadge ?? DockBadgeMonitor(bundleID: DockBadgeMonitor.messagesBundleID)
+        monitor.onChange = { [weak self] reading in self?.handleMessagesBadge(reading) }
+        if !AXIsProcessTrusted() { DockBadgeMonitor.requestPermission() }
+        monitor.start()
+        messagesBadge = monitor
+    }
+
+    private func handleMessagesBadge(_ reading: DockBadgeMonitor.Reading) {
+        let previous = state.messagesUnread
+        switch reading {
+        case let .count(count):
+            state.messagesUnread = count
+            state.messagesNeedsPermission = false
+            if let previous, count > previous {
+                let now = Date()
+                post(ActivityItem(
+                    source: .system, priority: .p2, coalescingKey: "imessage", title: "iMessage",
+                    subtitle: count > 1 ? "\(count) non lus" : "Nouveau message", symbol: "message",
+                    createdAt: now, expiresAt: now.addingTimeInterval(6)))
+            }
+        case .needsPermission:
+            state.messagesUnread = nil
+            state.messagesNeedsPermission = true
+        case .unavailable:
+            state.messagesUnread = nil
+            state.messagesNeedsPermission = false
+        }
+        refreshLiveActivity()
+    }
+
+    func openMessages() {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: DockBadgeMonitor.messagesBundleID) {
+            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        }
+        display.collapseAll()
+    }
+
+    func requestAccessibilityPermission() {
+        DockBadgeMonitor.requestPermission()
+        openPrivacySettings("Privacy_Accessibility")
+    }
+
+    private func handleSystem(_ event: SystemEvent) {
+        let modules = state.settings.modules
+        switch event {
+        case .volume:
+            guard modules.volume else { return }
+        case let .outputDeviceChanged(name):
+            state.outputDeviceName = name
+            guard modules.audioDevice else { return }
+        case let .power(status, _):
+            state.power = status
+        case let .capsLock(isOn):
+            state.capsLock = .value(isOn)
+        case .bluetooth:
+            break
+        }
+        if let item = SystemEventMapper.activity(for: event, now: Date()) { post(item) }
+    }
+
+    private func handleNowPlaying(_ playing: NowPlaying?) {
+        let previous = state.nowPlaying
+        state.nowPlaying = playing
+        state.mediaAvailable = media.isAnyRunning
+        let now = Date()
+        if let playing, playing.state == .playing {
+            lastPlaying = playing
+            mediaGraceUntil = nil
+            mediaGraceTimer?.invalidate()
+        } else if previous?.state == .playing {
+            mediaGraceUntil = now.addingTimeInterval(Self.mediaGrace)
+            mediaGraceTimer?.invalidate()
+            let timer = Timer(fire: now.addingTimeInterval(Self.mediaGrace + 0.2), interval: 0, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshLiveActivity() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            mediaGraceTimer = timer
+        }
+        guard let playing else {
+            refreshLiveActivity()
+            return
+        }
+        if playing.state == .playing, previous?.trackID != playing.trackID, previous != nil {
+            post(ActivityItem(
+                // The peek shows the subtitle: the track title, which is what changed.
+                source: .media, priority: .p3, coalescingKey: PeekKeys.trackChange, title: playing.artist.isEmpty ? "Nouveau morceau" : playing.artist,
+                subtitle: playing.title, symbol: "music.note", createdAt: now, expiresAt: now.addingTimeInterval(3)))
+        }
+        refreshLiveActivity()
+    }
+
+    // MARK: - Continuous information ("affichage continu")
+
+    /// Re-selects the single item kept in the notch at rest and schedules one timer for the next
+    /// moment the choice can change by itself (a meeting entering its lead window or ending).
+    func refreshLiveActivity() {
+        let now = Date()
+        let modules = state.settings.modules
+        let agentSessions = state.sessions.filter { session in
+            switch session.provider {
+            case .claudeCode: return modules.claudeCode
+            case .codex: return modules.codex
+            case .chatGPT: return modules.chatGPT
+            }
+        }
+        // Within the grace period after a pause/stop, keep showing the last playing track.
+        var liveMedia = state.nowPlaying
+        if liveMedia?.state != .playing, let until = mediaGraceUntil, now < until, let last = lastPlaying {
+            liveMedia = last
+        }
+        let inputs = LiveActivityInputs(
+            nowPlaying: modules.media ? liveMedia : nil,
+            nextEvent: (modules.calendar || modules.googleCalendar) ? state.events.nextMeeting(after: now) : nil,
+            waitingAgents: agentSessions.filter { $0.state == .waiting }.count,
+            activeAgents: agentSessions.filter { $0.state == .active }.count,
+            unreadMail: modules.gmail ? state.unreadCount : nil,
+            unreadChats: modules.googleChat ? state.chatUnread.count : 0,
+            unreadMessages: modules.iMessage ? (state.messagesUnread ?? 0) : 0,
+            timer: state.timer)
+        let settings = state.settings.live
+        let selected = LiveActivityPlanner.select(inputs, settings: settings, now: now)
+        var changed = false
+        for key in LiveActivityKey.all where key != selected?.coalescingKey {
+            if router.dismiss(coalescingKey: key) != nil { changed = true }
+        }
+        if let selected {
+            switch router.post(selected, now: now) {
+            case .duplicate, .muted: break
+            default: changed = true
+            }
+        }
+        if changed { publish() }
+
+        liveTimer?.invalidate()
+        liveTimer = nil
+        if let next = LiveActivityPlanner.nextChange(inputs, settings: settings, now: now) {
+            let timer = Timer(fire: next.addingTimeInterval(0.5), interval: 0, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshLiveActivity() }
+            }
+            timer.tolerance = 2
+            RunLoop.main.add(timer, forMode: .common)
+            liveTimer = timer
+        }
+    }
+
+    private func stopMedia() {
+        media.stopAll()
+        state.nowPlaying = nil
+        state.artwork = nil
+        dismissActivity(key: PeekKeys.nowPlaying)
+    }
+
+    // MARK: - Productivity
+
+    private func startProductivity() {
+        eventKit.eventsEnabled = state.settings.modules.calendar
+        eventKit.remindersEnabled = state.settings.modules.reminders
+        eventKit.onEvents = { [weak self] events in
+            self?.eventKitEvents = events
+            self?.mergeEvents()
+        }
+        eventKit.onReminders = { [weak self] reminders in
+            guard let self else { return }
+            self.eventKitReminders = reminders
+            self.mergeReminders()
+        }
+        eventKit.onAccessChange = { [weak self] in self?.refreshAccess() }
+        refreshAccess()
+        eventKit.start()
+    }
+
+    private func refreshAccess() {
+        state.calendarAccess = Self.map(EventKitProvider.access(for: .event))
+        state.remindersAccess = Self.map(EventKitProvider.access(for: .reminder))
+    }
+
+    private static func map(_ access: EventKitProvider.Access) -> AccessState {
+        switch access {
+        case .granted: return .granted
+        case .notDetermined: return .notDetermined
+        case .denied: return .denied
+        case .restricted: return .restricted
+        }
+    }
+
+    /// Google Tasks are shown with the reminders (due today and overdue).
+    func setGoogleTasks(_ tasks: [ReminderItem]) {
+        guard tasks != googleTasks else { return }
+        googleTasks = tasks
+        mergeReminders()
+    }
+
+    func dropGoogleTask(id: String) {
+        googleTasks.removeAll { $0.id == id }
+        mergeReminders()
+    }
+
+    private func mergeReminders() {
+        remindersAll = eventKitReminders + googleTasks
+        state.reminders = ReminderGroups.group(remindersAll, now: Date())
+        rescheduleTimers()
+    }
+
+    func mergeEvents() {
+        state.events = CalendarDeduplicator.merge(eventKit: eventKitEvents, google: googleEvents)
+        rescheduleTimers()
+        refreshLiveActivity()
+    }
+
+    /// One timer aligned on the next boundary that matters (5 min before an event, its start or
+    /// end, a reminder due time, midnight) instead of polling.
+    func rescheduleTimers() {
+        scheduleTimer?.invalidate()
+        let now = Date()
+        updateFocusContext(isInMeeting: state.events.contains { $0.isMeeting(at: now) })
+        var candidates: [Date] = []
+        for event in state.events where !event.isAllDay {
+            if event.end > now { candidates.append(event.end) }
+            // Free and out-of-office events are no meetings: no warning, no start notice.
+            guard event.countsAsMeeting else { continue }
+            let warning = event.start.addingTimeInterval(-300)
+            if warning > now { candidates.append(warning) } else if event.start > now, !notifiedSchedule.contains("event:\(event.id)") {
+                notifyEvent(event, now: now)
+            }
+            if event.start > now {
+                candidates.append(event.start)
+            } else if now.timeIntervalSince(event.start) < 60, !notifiedSchedule.contains("start:\(event.id)") {
+                notifyEventStart(event, now: now)
+            }
+        }
+        for reminder in remindersAll where !reminder.isCompleted && reminder.hasDueTime {
+            guard let due = reminder.due else { continue }
+            if due > now {
+                candidates.append(due)
+            } else if now.timeIntervalSince(due) < 60, !notifiedSchedule.contains("reminder:\(reminder.id)") {
+                notifyReminder(reminder, now: now)
+            }
+        }
+        if let midnight = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: now)) {
+            candidates.append(midnight)
+        }
+        guard let next = candidates.filter({ $0 > now }).min() else { return }
+        let timer = Timer(fire: next.addingTimeInterval(0.5), interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.state.reminders = ReminderGroups.group(self.remindersAll, now: Date())
+                self.rescheduleTimers()
+            }
+        }
+        timer.tolerance = 2
+        RunLoop.main.add(timer, forMode: .common)
+        scheduleTimer = timer
+    }
+
+    private func notifyEvent(_ event: CalendarEvent, now: Date) {
+        if notifiedSchedule.count > 500 { notifiedSchedule.removeAll() }
+        notifiedSchedule.insert("event:\(event.id)")
+        // Live countdown in the peek; a click joins the meeting (or opens the event).
+        post(ActivityItem(
+            source: .calendar, priority: .p1, coalescingKey: "event:\(event.id)", title: event.title,
+            subtitle: CountdownFormatter.string(until: event.start, now: now), symbol: event.meetingURL == nil ? "calendar" : "video.fill",
+            reference: event.id,
+            createdAt: now, expiresAt: event.start.addingTimeInterval(60)))
+    }
+
+    /// The meeting starts now: the countdown gives way to a notice that animates the notch until
+    /// the user clicks it (which joins the meeting) or for 5 min.
+    private func notifyEventStart(_ event: CalendarEvent, now: Date) {
+        if notifiedSchedule.count > 500 { notifiedSchedule.removeAll() }
+        notifiedSchedule.insert("start:\(event.id)")
+        dismissActivity(key: "event:\(event.id)")
+        post(ActivityItem(
+            source: .calendar, priority: .p1, coalescingKey: "\(PeekKeys.eventStart)\(event.id)", title: event.title,
+            subtitle: "Maintenant", symbol: event.meetingURL == nil ? "calendar" : "video.fill",
+            reference: event.id, createdAt: now, expiresAt: now.addingTimeInterval(300)))
+    }
+
+    private func notifyReminder(_ reminder: ReminderItem, now: Date) {
+        notifiedSchedule.insert("reminder:\(reminder.id)")
+        post(ActivityItem(
+            source: .reminders, priority: .p1, coalescingKey: "reminder:\(reminder.id)", title: reminder.title,
+            subtitle: "Rappel", symbol: "checklist", reference: reminder.id, createdAt: now, expiresAt: now.addingTimeInterval(10)))
+    }
+
+    // MARK: - Shortcuts & palette
+
+    private func registerHotKeys() {
+        let settings = state.settings
+        var refused: [String] = []
+        if !hotKeys.register(id: 1, shortcut: settings.quickActionsShortcut, handler: { [weak self] in self?.toggleQuickActions() }) {
+            refused.append(settings.quickActionsShortcut.displayString)
+        }
+        if !hotKeys.register(id: 2, shortcut: settings.toggleNotchShortcut, handler: { [weak self] in self?.toggleNotch() }) {
+            refused.append(settings.toggleNotchShortcut.displayString)
+        }
+        if !refused.isEmpty {
+            settingsWindow.lastError = "Raccourci déjà utilisé par une autre application : \(refused.joined(separator: ", "))."
+        }
+    }
+
+    func toggleNotch() {
+        display.toggle(tab: preferredTab())
+    }
+
+    func toggleQuickActions() {
+        quickActions.toggle(catalog: quickActionCatalog())
+    }
+
+    func quickActionCatalog() -> [QuickActionItem] {
+        var items: [QuickActionItem] = []
+        if let timer = state.timer {
+            items.append(QuickActionItem(
+                id: "stop-timer", title: "Arrêter : \(timer.kind.label)", subtitle: "Fin à " + timer.end.formatted(date: .omitted, time: .shortened),
+                symbol: "stop.circle", action: .stopTimer, keywords: ["minuteur", "timer", "pomodoro", "stop"]))
+        }
+        for (index, text) in clipboardHistory.items.enumerated() {
+            let line = text.split(whereSeparator: \.isNewline).first.map(String.init) ?? text
+            items.append(QuickActionItem(
+                id: "clip:\(index)", title: Redactor.truncate(line, limit: 80), subtitle: "Presse-papiers · copier à nouveau",
+                symbol: "doc.on.clipboard", action: .copyText(text), keywords: ["presse-papiers", "copie", "clipboard"]))
+        }
+        if let event = state.nextEvent(now: Date()) {
+            items.append(QuickActionItem(
+                id: "next-event", title: event.title, subtitle: "Prochain événement · " + CountdownFormatter.string(until: event.start, end: event.end, now: Date()),
+                symbol: "calendar", action: .openEvent(id: event.id), keywords: ["prochain", "événement", "agenda"]))
+            if let url = event.meetingURL {
+                items.append(QuickActionItem(id: "join", title: "Rejoindre : \(event.title)", symbol: "video", action: .joinMeeting(url), keywords: ["réunion", "visio"]))
+            }
+        }
+        for event in state.events.prefix(10) where event.id != state.nextEvent(now: Date())?.id {
+            items.append(QuickActionItem(id: "event:\(event.id)", title: event.title, subtitle: event.start.formatted(date: .abbreviated, time: .shortened), symbol: "calendar", action: .openEvent(id: event.id)))
+        }
+        for reminder in state.reminders.overdue + state.reminders.today {
+            items.append(QuickActionItem(id: "reminder:\(reminder.id)", title: "Terminer : \(reminder.title)", symbol: "checkmark.circle", action: .completeReminder(id: reminder.id), keywords: ["rappel"]))
+        }
+        for session in state.sessions {
+            items.append(QuickActionItem(id: "session:\(session.id)", title: session.projectName, subtitle: session.provider.displayName, symbol: "terminal", action: .openSession(id: session.id), keywords: ["ia", "agent"]))
+        }
+        for mail in state.mail {
+            items.append(QuickActionItem(id: "mail:\(mail.id)", title: mail.subject, subtitle: mail.senderName, symbol: "envelope", action: .openMail(id: mail.id), keywords: ["mail"]))
+        }
+        if let unread = state.messagesUnread, unread > 0 {
+            items.append(QuickActionItem(id: "imessage", title: "Messages", subtitle: "\(unread) non lu\(unread > 1 ? "s" : "")", symbol: "message", action: .openMessages, keywords: ["imessage", "sms"]))
+        }
+        for chat in state.chatUnread.prefix(10) {
+            items.append(QuickActionItem(id: "chat:\(chat.id)", title: chat.title, subtitle: "Google Chat · non lu", symbol: "bubble.left", action: .openChat(spaceID: chat.id)))
+        }
+        items.append(QuickActionItem(
+            id: "silent", title: state.settings.focusMode == .silent ? "Désactiver le mode silencieux" : "Activer le mode silencieux",
+            symbol: "bell.slash", action: .toggleSilentMode, keywords: ["concentration", "focus"]))
+        return items
+    }
+
+    private func perform(_ item: QuickActionItem) {
+        switch item.action {
+        case let .createReminder(title, due, hasDueTime):
+            createReminder(title: title, due: due, hasDueTime: hasDueTime)
+        case let .openEvent(id):
+            if let event = state.events.first(where: { $0.id == id }) { openEvent(event) }
+        case let .joinMeeting(url):
+            joinMeeting(url)
+        case let .openSession(id):
+            if let session = state.sessions.first(where: { $0.id == id }) { openSession(session) }
+        case let .openMail(id):
+            if let mail = state.mail.first(where: { $0.id == id }) { openMail(mail) }
+        case .openMessages:
+            openMessages()
+        case let .openChat(spaceID):
+            if let chat = state.chatUnread.first(where: { $0.id == spaceID }) { openChat(chat) }
+        case let .completeReminder(id):
+            completeReminder(id: id)
+        case .toggleSilentMode:
+            setFocusMode(state.settings.focusMode == .silent ? .normal : .silent)
+        case let .startTimer(seconds, kind):
+            startTimer(seconds: seconds, kind: kind)
+        case .stopTimer:
+            stopTimer()
+        case let .copyText(text):
+            clipboardMonitor?.copy(text)
+        }
+    }
+
+    // MARK: - Timer and Pomodoro
+
+    func startTimer(seconds: Int, kind: NotchTimer.Kind) {
+        state.timer = NotchTimer(kind: kind, start: Date(), duration: TimeInterval(seconds))
+        scheduleCountdown()
+        refreshLiveActivity()
+    }
+
+    func stopTimer() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        state.timer = nil
+        refreshLiveActivity()
+    }
+
+    private func scheduleCountdown() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        guard let running = state.timer else { return }
+        let timer = Timer(fire: running.end, interval: 0, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.countdownFinished() }
+        }
+        timer.tolerance = 0.2
+        RunLoop.main.add(timer, forMode: .common)
+        countdownTimer = timer
+    }
+
+    private func countdownFinished() {
+        guard let finished = state.timer else { return }
+        let now = Date()
+        NSSound(named: "Glass")?.play()
+        state.timer = finished.next(at: now)
+        let notice: (title: String, subtitle: String, symbol: String)
+        switch finished.kind {
+        case .timer: notice = ("Minuteur", "Terminé", "timer")
+        case .focus: notice = ("Pomodoro", "Pause \(TimerFormatter.duration(NotchTimer.pauseDuration))", "cup.and.saucer")
+        case .pause: notice = ("Pomodoro", "Terminé", "checkmark.circle")
+        }
+        post(ActivityItem(
+            source: .system, priority: .p1, coalescingKey: "timer-done", title: notice.title, subtitle: notice.subtitle, symbol: notice.symbol,
+            createdAt: now, expiresAt: now.addingTimeInterval(6)))
+        scheduleCountdown()
+        refreshLiveActivity()
+    }
+
+    // MARK: - Clipboard history (opt-in, memory only)
+
+    private func configureClipboard(_ enabled: Bool) {
+        guard enabled else {
+            clipboardMonitor?.stop()
+            clipboardMonitor = nil
+            clipboardHistory.clear()
+            return
+        }
+        let monitor = clipboardMonitor ?? ClipboardMonitor()
+        monitor.onCopy = { [weak self] text in self?.clipboardHistory.add(text) }
+        monitor.start()
+        clipboardMonitor = monitor
+    }
+
+    // MARK: - Presenting (mirrored display)
+
+    /// A mirrored display (projector, AirPlay mirroring) means an audience sees the notch: only
+    /// agent decisions may then appear. Screen sharing in video-call apps has no public signal.
+    private func observePresentation() {
+        guard screenObserver == nil else { return }
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updatePresentingState() }
+        }
+        updatePresentingState()
+    }
+
+    private func updatePresentingState() {
+        var displays = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(UInt32(displays.count), &displays, &count) == .success else { return }
+        let mirrored = displays.prefix(Int(count)).contains { CGDisplayIsInMirrorSet($0) != 0 }
+        updateFocusContext(isPresenting: mirrored)
+    }
+
+    // MARK: - Peek click
+
+    /// A click on a peek acts on it when there is an obvious target; otherwise the notch expands.
+    func handlePeekClick() -> Bool {
+        guard let item = state.peek else { return false }
+        let key = item.coalescingKey
+        if key.hasPrefix("event:") || key.hasPrefix(PeekKeys.eventStart), let id = item.reference, let event = state.events.first(where: { $0.id == id }) {
+            if let url = event.meetingURL { joinMeeting(url) } else { openEvent(event) }
+            dismissActivity(key: key)
+            return true
+        }
+        if key.hasPrefix("agent"), let id = item.reference, let session = state.sessions.first(where: { $0.id == id }),
+           !state.pendingRequests.contains(where: { $0.sessionID == id }) {
+            openSession(session)
+            dismissActivity(key: key)
+            return true
+        }
+        if key == "imessage" || key == LiveActivityKey.messages {
+            openMessages()
+            return true
+        }
+        return false
+    }
+
+    // MARK: - EspazioActions (media, productivity, app)
+
+    func togglePlayPause() { media.playPause() }
+    func nextTrack() { media.next() }
+    func previousTrack() { media.previous() }
+    func openMediaApp() {
+        media.openApp()
+        display.collapseAll()
+    }
+
+    func requestCalendarAccess() {
+        Task { _ = await eventKit.requestEventsAccess() }
+    }
+
+    func requestRemindersAccess() {
+        Task { _ = await eventKit.requestRemindersAccess() }
+    }
+
+    func openEvent(_ event: CalendarEvent) {
+        if event.source == .google, let url = event.url {
+            NSWorkspace.shared.open(url)
+        } else {
+            eventKit.open(event)
+        }
+        display.collapseAll()
+    }
+
+    func joinMeeting(_ url: URL) {
+        guard url.scheme == "https" else { return }
+        NSWorkspace.shared.open(url)
+        display.collapseAll()
+    }
+
+    func completeReminder(id: String) {
+        if id.hasPrefix(GoogleTasksService.idPrefix) {
+            google?.completeTask(id: id)
+            return
+        }
+        do {
+            try eventKit.completeReminder(id: id)
+        } catch {
+            showError("Impossible de terminer le rappel.")
+        }
+    }
+
+    func createReminder(title: String, due: Date?, hasDueTime: Bool) {
+        guard state.remindersAccess == .granted else {
+            requestRemindersAccess()
+            return
+        }
+        do {
+            try eventKit.createReminder(title: title, due: due, hasDueTime: hasDueTime)
+            let now = Date()
+            post(ActivityItem(source: .reminders, priority: .p3, coalescingKey: "reminder-created", title: "Rappel créé", subtitle: title,
+                              symbol: "checkmark.circle", createdAt: now, expiresAt: now.addingTimeInterval(2.5)))
+        } catch {
+            showError("Impossible de créer le rappel.")
+        }
+    }
+
+    func openReminders() { eventKit.openRemindersApp() }
+
+    func setFocusMode(_ mode: FocusMode) {
+        var settings = state.settings
+        settings.focusMode = mode
+        updateSettings(settings)
+    }
+
+    func openSettings() {
+        display.collapseAll()
+        settingsWindow.show()
+    }
+
+    func collapseNotch() { display.collapseAll() }
+
+    func dismissPeek() {
+        if let key = state.peek?.coalescingKey, state.peek?.requiresDecision == false { dismissActivity(key: key) }
+    }
+
+    func showError(_ message: String) {
+        let now = Date()
+        post(ActivityItem(source: .system, priority: .p2, coalescingKey: "error", title: message, symbol: "exclamationmark.triangle",
+                          createdAt: now, expiresAt: now.addingTimeInterval(4)))
+    }
+
+    // MARK: - SettingsActions
+
+    func openPrivacySettings(_ pane: String) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func refreshDiagnostics() {
+        state.diagnostics = Diagnostics.snapshot(
+            launchDate: launchDate, notchWindows: display.controllers.count, activityItems: router.items.count,
+            artworkCacheItems: media.artworkCacheCount, bridgeRunning: bridge?.isRunning ?? false,
+            codexRunning: codexTransport?.isRunning ?? false)
+    }
+
+    // MARK: - Welcome
+
+    func showWelcome() {
+        let controller = welcomeWindow ?? WelcomeWindowController(state: state, actions: self)
+        welcomeWindow = controller
+        controller.show()
+    }
+
+    func finishWelcome() {
+        welcomeWindow?.close()
+        guard !state.settings.hasCompletedOnboarding else { return }
+        var settings = state.settings
+        settings.hasCompletedOnboarding = true
+        updateSettings(settings)
+    }
+
+    func openGoogleSettings() {
+        settingsWindow.show()
+    }
+
+    func setLaunchAtLogin(_ enabled: Bool) {
+        settingsWindow.lastError = LaunchAtLogin.set(enabled)
+        state.launchAtLogin = LaunchAtLogin.isEnabled
+    }
+
+    func checkForUpdates() { updates.checkForUpdates() }
+
+    func setAutomaticUpdateChecks(_ enabled: Bool) {
+        updates.automaticallyChecks = enabled
+        state.automaticUpdateChecks = updates.automaticallyChecks
+    }
+
+    func revealAuditLog() {
+        NSWorkspace.shared.activateFileViewerSelecting([audit.fileURL])
+    }
+
+    // MARK: - Approvals → activities
+
+    func observeApprovals() {
+        approvalsTask?.cancel()
+        let approvals = self.approvals
+        approvalsTask = Task { [weak self] in
+            let stream = await approvals.updates()
+            for await requests in stream {
+                self?.approvalsChanged(requests)
+            }
+        }
+    }
+
+    private func approvalsChanged(_ requests: [AgentRequest]) {
+        state.pendingRequests = requests
+        let ids = Set(requests.map(\.id))
+        for removed in postedApprovalIDs.subtracting(ids) {
+            router.dismiss(coalescingKey: "approval:\(removed)")
+        }
+        for request in requests where !postedApprovalIDs.contains(request.id) {
+            router.post(ActivityItem(
+                source: .agents, priority: .p0, coalescingKey: "approval:\(request.id)",
+                title: request.kind.isQuestion ? "Question" : "Autoriser ?", subtitle: request.provider.displayName,
+                symbol: request.kind.isQuestion ? "questionmark.bubble" : "exclamationmark.shield", reference: request.id,
+                createdAt: request.createdAt, requiresDecision: true), now: Date())
+        }
+        postedApprovalIDs = ids
+        publish()
+    }
+}
