@@ -103,9 +103,9 @@ public final class EventKitProvider {
         onEvents?(Array(events))
     }
 
-    /// "Show as" of the event; an invitation the user declined does not keep them busy.
+    /// "Show as" of the event; an invitation the user declined is marked as such (hidden).
     static func availability(of event: EKEvent) -> EventAvailability {
-        if event.attendees?.first(where: \.isCurrentUser)?.participantStatus == .declined { return .free }
+        if event.attendees?.first(where: \.isCurrentUser)?.participantStatus == .declined { return .declined }
         switch event.availability {
         case .busy: return .busy
         case .free: return .free

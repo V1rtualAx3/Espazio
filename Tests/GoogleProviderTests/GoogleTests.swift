@@ -460,7 +460,7 @@ final class GoogleAPITests: XCTestCase {
         ]}
         """#.utf8))
         let events = GoogleCalendarService.parseEvents(json)
-        XCTAssertEqual(events.map(\.availability), [.busy, .free, .unavailable, .free])
+        XCTAssertEqual(events.map(\.availability), [.busy, .free, .unavailable, .declined])
         XCTAssertEqual(events.map(\.countsAsMeeting), [true, false, false, false])
     }
 

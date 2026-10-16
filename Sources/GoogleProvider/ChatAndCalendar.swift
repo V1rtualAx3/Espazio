@@ -217,8 +217,8 @@ public struct GoogleCalendarService: Sendable {
         }
     }
 
-    /// Out of office → unavailable; "Disponible" (transparent), working location or an invitation
-    /// the user declined → free; otherwise busy (Google's default).
+    /// Out of office → unavailable; an invitation the user declined → declined; "Disponible"
+    /// (transparent) or working location → free; otherwise busy (Google's default).
     static func availability(of item: JSONValue) -> EventAvailability {
         switch item["eventType"]?.stringValue {
         case "outOfOffice": return .unavailable
@@ -227,7 +227,7 @@ public struct GoogleCalendarService: Sendable {
         }
         let me = item["attendees"]?.arrayValue?.first { $0["self"]?.boolValue == true }
         switch me?["responseStatus"]?.stringValue {
-        case "declined": return .free
+        case "declined": return .declined
         case "tentative": return .tentative
         default: break
         }

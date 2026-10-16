@@ -12,6 +12,8 @@ public enum EventAvailability: String, Sendable, Codable {
     case tentative
     /// Out of office ("Absent").
     case unavailable
+    /// An invitation the user declined: left out of the agenda and the notch.
+    case declined
     /// The calendar does not say: treated as busy.
     case unknown
 }
@@ -75,7 +77,8 @@ public extension Array where Element == CalendarEvent {
         let timed = filter {
             !$0.isAllDay && $0.start < endOfDay && $0.end > date && date.timeIntervalSince($0.start) < Self.startedEventGrace
         }
-        return timed.min { $0.start < $1.start } ?? first { $0.isAllDay && $0.start <= date && $0.end > date }
+        // At the same start, a busy meeting comes before a free or out-of-office event.
+        return timed.min { ($0.start, $0.countsAsMeeting ? 0 : 1) < ($1.start, $1.countsAsMeeting ? 0 : 1) } ?? first { $0.isAllDay && $0.start <= date && $0.end > date }
     }
 
     /// Next busy, timed event that has not started yet: the one the notch counts down to.
@@ -130,7 +133,8 @@ public enum CalendarDeduplicator {
             if let uid = event.iCalUID?.lowercased(), uids.contains(uid) { return false }
             return !signatures.contains(signature(event))
         }
-        return (eventKit + extra).sorted { $0.start < $1.start }
+        // A declined invitation is not on the user's agenda.
+        return (eventKit + extra).filter { $0.availability != .declined }.sorted { $0.start < $1.start }
     }
 
     private static func signature(_ event: CalendarEvent) -> String {

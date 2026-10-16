@@ -408,6 +408,18 @@ final class MeetingCountdownTests: XCTestCase {
         XCTAssertEqual([late, tomorrowMeeting].eventToShow(at: evening, calendar: calendar)?.id, "l")
     }
 
+    func testDeclinedInvitationsLeaveTheAgenda() {
+        var declined = CalendarEvent(id: "op", title: "Daily operation", start: at(0), end: at(15), source: .eventKit)
+        declined.availability = .declined
+        let accepted = CalendarEvent(id: "bs", title: "Daily business support", start: at(0), end: at(15), source: .google)
+        var free = CalendarEvent(id: "free", title: "Focus", start: at(0), end: at(60), source: .eventKit)
+        free.availability = .free
+        let merged = CalendarDeduplicator.merge(eventKit: [declined, free], google: [accepted])
+        XCTAssertEqual(Set(merged.map(\.id)), ["bs", "free"])
+        XCTAssertEqual(merged.eventToShow(at: at(-5))?.id, "bs", "the busy meeting before a free event at the same time")
+        XCTAssertFalse(declined.countsAsMeeting)
+    }
+
     func testShortCountdownAndRing() {
         XCTAssertEqual(CountdownFormatter.short(until: at(12), now: at(0)), "12 min")
         XCTAssertEqual(CountdownFormatter.short(until: at(65), now: at(0)), "1 h 05")
